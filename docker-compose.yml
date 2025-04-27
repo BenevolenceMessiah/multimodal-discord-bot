@@ -1,0 +1,37 @@
+version: "3.9"
+services:
+  bot:
+    build: ./bot
+    env_file: .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - multimodal
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - multimodal
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bot
+      POSTGRES_PASSWORD: bot
+      POSTGRES_DB: bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - multimodal
+    restart: unless-stopped
+
+networks:
+  multimodal: {}
+volumes:
+  pgdata: {}

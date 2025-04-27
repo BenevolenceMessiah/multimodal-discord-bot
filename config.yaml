@@ -1,0 +1,55 @@
+# Providers
+textgenProvider: ${TEXTGEN_PROVIDER:-ollama}
+voicegenProvider: ${VOICEGEN_PROVIDER:-alltalk}
+imagegenProvider: ${IMAGEGEN_PROVIDER:-stablediffusion}
+
+# Models
+modelOllama: ${MODEL_OLLAMA}
+modelOpenrouter: ${MODEL_OPENROUTER}
+modelAlltalk: ${MODEL_ALLTALK}
+fluxModelName: ${FLUX_MODEL_NAME}
+
+# System Prompt (supports Markdown, lists, headings)
+systemMessage: |
+  ${SYSTEM_MESSAGE:-"""
+  # System Rules
+  You are a helpful Discord bot.
+  """}
+
+# Generation Parameters
+maxTokens: ${MAX_TOKENS:-2048}
+keepAlive: ${KEEP_ALIVE:-0}    # Ollama model retention: seconds or 0
+contextLength: ${CONTEXT_LENGTH:-4096}
+temperature: ${TEMPERATURE:-0.3}
+stream: ${STREAM:-false}
+
+# Automatic context rollup
+wakeWords: ${WAKE_WORDS:-["hey bot","listen"]}
+maxLines: ${MAX_LINES:-25}
+
+# Service Endpoints
+endpoints:
+  ollama: ${OLLAMA_URL:-http://127.0.0.1:11434}
+  stablediffusion: ${SD_URL:-http://127.0.0.1:7860}
+  alltalk: ${ALLTALK_URL:-http://127.0.0.1:7851}
+  elevenlabs: ${ELEVENLABS_URL:-https://api.elevenlabs.io/v1}
+
+# API Keys
+openrouterKey: ${OPENROUTER_KEY}
+elevenlabsKey: ${ELEVENLABS_KEY}
+
+# Redis Cache Configuration
+redis:
+  enabled: ${REDIS_ENABLED:-false}
+  url: ${REDIS_URL:-redis://localhost:6379}
+  ttl: ${REDIS_TTL:-3600}
+
+# Postgres Persistence Configuration
+postgres:
+  enabled: ${POSTGRES_ENABLED:-false}
+  url: ${POSTGRES_URL:-postgresql://bot:bot@localhost:5432/bot}
+
+# Web Search Configuration
+search:
+  provider: ${SEARCH_PROVIDER:-tavily}
+  tavilyKey: ${TAVILY_KEY}
