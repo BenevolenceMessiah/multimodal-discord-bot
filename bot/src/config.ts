@@ -1,52 +1,86 @@
-import fs from "fs";
-import yaml from "js-yaml";
-import { BotConfig } from "./types.js";
+import fs from 'fs';
+import yaml from 'js-yaml';
+import { BotConfig } from './types.js';
+import { randomUUID } from 'crypto';
 
-// Helper: replace ${VAR:-default} placeholders using process.env
+/** Replace ${ENV_KEY} or ${ENV_KEY:-default} placeholders inside YAML text */
 function interpolate(str: string): string {
-  return str.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_, key, _2, def) => {
-    return process.env[key] ?? def ?? "";
-  });
+  return str.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_, key, _2, def) =>
+    process.env[key] ?? def ?? ''
+  );
 }
 
-const rawFile = fs.readFileSync("config.yaml", "utf8");
-// First pass: substitute env placeholders inside YAML
-const hydrated = interpolate(rawFile);
-const doc = yaml.load(hydrated) as BotConfig;
+// Load and hydrate config.yaml with environment variables
+const raw = fs.readFileSync('config.yaml', 'utf8');
+const hydrated = interpolate(raw);
+const cfg = yaml.load(hydrated) as BotConfig;
 
-// Second pass: for *any* environment variable that matches a config key
-for (const [key, value] of Object.entries(process.env)) {
-  const lc = key.toLowerCase();
-  if (lc in doc) (doc as any)[lc] = value;
-  // n8n convention: N8N_<key>
-  if (lc.startsWith("n8n_")) {
-    const k = lc.slice(4);
-    if (k in doc) (doc as any)[k] = value;
+// Apply flat environment overrides
+for (const [k, v] of Object.entries(process.env)) {
+  const lc = k.toLowerCase();
+  if (lc in cfg) (cfg as any)[lc] = v;
+  if (lc.startsWith('n8n_')) {
+    const key = lc.slice(4);
+    if (key in cfg) (cfg as any)[key] = v;
   }
 }
 
-// Allow multiline SYSTEM_MESSAGE in .env (escaped with 
-)
+// Handle multiline SYSTEM_MESSAGE from .env
 if (process.env.SYSTEM_MESSAGE) {
-  doc.systemMessage = process.env.SYSTEM_MESSAGE.replace(/\n/g, "
-");
+  cfg.systemMessage = process.env.SYSTEM_MESSAGE.replace(/\\n/g, '\n');
 }
 
-export const config: BotConfig = doc;
-```ts
-import fs from "fs";
-import yaml from "js-yaml";
-import { BotConfig } from "./types.js";
+// Validate required configuration fields
+if (cfg.textgenProvider === 'ollama' && !cfg.endpoints.ollama) {
+  throw new Error("OLLAMA_URL must be defined in config.yaml or .env when using Ollama");
+}
 
-const raw = yaml.load(fs.readFileSync("config.yaml", "utf8")) as BotConfig;
+if (cfg.textgenProvider === 'openrouter' && !cfg.endpoints.openrouter) {
+  throw new Error("OPENROUTER_URL must be defined in config.yaml or .env when using OpenRouter");
+}
 
-// allow n8n‑driven overrides via env vars prefixed N8N_
-for (const [key, value] of Object.entries(process.env)) {
-  if (key.startsWith("N8N_")) {
-    const path = key.substring(4).toLowerCase();
-    // naive flat override
-    if (path in raw) (raw as any)[path] = value;
+if (cfg.imagegenProvider === 'stablediffusion' && !cfg.endpoints.stablediffusion) {
+  throw new Error("SD_URL must be defined in config.yaml or .env when using Stable Diffusion");
+}
+
+if (cfg.voicegenProvider === 'alltalk' && !cfg.endpoints.alltalk) {
+  throw new Error("ALLTALK_URL must be defined in config.yaml or .env when using AllTalk");
+}
+
+if (cfg.voicegenProvider === 'elevenlabs' && !cfg.elevenlabsKey) {
+  throw new Error("ELEVENLABS_KEY must be defined in config.yaml or .env when using ElevenLabs");
+}
+
+if (cfg.search?.provider === 'tavily' && !cfg.search?.tavilyKey) {
+  throw new Error("TAVILY_KEY must be defined in config.yaml or .env when using Tavily");
+}
+
+// Ensure Redis URL is defined when Redis is enabled
+if (cfg.redis?.enabled && !cfg.redis.url) {
+  throw new Error("REDIS_URL must be defined in config.yaml or .env when Redis is enabled");
+}
+
+// Ensure PostgreSQL is properly configured
+if (cfg.postgres?.enabled) {
+  if (!cfg.postgres.url) {
+    throw new Error("POSTGRES_URL must be defined in config.yaml or .env when PostgreSQL is enabled");
+  }
+
+  // More flexible PostgreSQL URL validation
+  if (!/^postgres(ql)?:\/\/.+\/.*$/.test(cfg.postgres.url)) {
+    throw new Error("POSTGRES_URL must be a valid PostgreSQL connection string");
   }
 }
 
-export const config: BotConfig = raw;
+// Ensure Redis TTL is valid when Redis is enabled
+if (cfg.redis?.enabled) {
+  if (typeof cfg.redis.ttl !== 'number' || cfg.redis.ttl < -1) {
+    throw new Error("REDIS_TTL must be >= -1 (-1 = no expiration)");
+  }
+  if (!Number.isInteger(cfg.redis.ttl)) {
+    throw new Error("REDIS_TTL must be an integer value");
+  }
+}
+
+// Final export
+export const config: BotConfig = cfg;

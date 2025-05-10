@@ -3,10 +3,7 @@ export interface BotConfig {
   textgenProvider: 'ollama' | 'openrouter';
   voicegenProvider: 'alltalk' | 'elevenlabs';
   imagegenProvider: 'stablediffusion';
-  search?: {
-    provider: 'tavily';
-    tavilyKey?: string;
-  };
+  search: { provider: 'tavily'; tavilyKey?: string };
 
   // Models
   modelOllama?: string;
@@ -14,15 +11,15 @@ export interface BotConfig {
   modelAlltalk?: string;
   fluxModelName?: string;
 
-  // Prompting / generation
+  // Generation
   systemMessage: string;
   maxTokens: number;
-  keepAlive?: string | number; // Seconds, "0", "5m", etc.
+  keepAlive?: string | number;
   contextLength: number;
   temperature: number;
   stream: boolean;
 
-  // Bot behaviour
+  // Behaviour
   wakeWords: string[];
   maxLines: number;
 
@@ -31,60 +28,9 @@ export interface BotConfig {
   openrouterKey?: string;
   elevenlabsKey?: string;
 
-  // Redis cache (optional)
-  redis?: {
-    enabled: boolean;
-    url: string;
-    ttl: number; // -1 = no expiry
-  };
+  // Redis (required now)
+  redis: { enabled: boolean; url: string; ttl: number };
 
-  // Postgres storage (optional)
-  postgres?: {
-    enabled: boolean;
-    url: string;
-  };
-}
-```ts
-export interface BotConfig {
-  # Providers
-  textgenProvider: 'ollama' | 'openrouter';
-  voicegenProvider: 'alltalk' | 'elevenlabs';
-  imagegenProvider: 'stablediffusion';
-  search?: { provider: 'tavily'; tavilyKey?: string };
-
-  # Models
-  modelOllama?: string;
-  modelOpenrouter?: string;
-  modelAlltalk?: string;
-  fluxModelName?: string;
-
-  # Prompting
-  systemMessage: string;
-  maxTokens: number;
-  keepAlive?: string | number;
-  contextLength: number;
-  temperature: number;
-  stream: boolean;
-
-  # Bot behavior
-  wakeWords: string[];
-  maxLines: number;
-
-  # Endpoints
-  endpoints: Record<string, string>;
-  openrouterKey?: string;
-  elevenlabsKey?: string;
-
-  # Redis
-  redis?: {
-    enabled: boolean;
-    url: string;
-    ttl: number;
-  };
-
-  # Postgres
-  postgres?: {
-    enabled: boolean;
-    url: string;
-  };
+  // Postgres
+  postgres: { enabled: boolean; url: string };
 }

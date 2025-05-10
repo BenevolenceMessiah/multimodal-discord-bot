@@ -1,5 +1,5 @@
 import { Collection, Snowflake } from "discord.js";
-import { config } from "../config.js";
+import { config } from "../src/config.js";
 
 const memory = new Collection<Snowflake, string[]>();
 

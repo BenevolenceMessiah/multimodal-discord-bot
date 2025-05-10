@@ -40,13 +40,13 @@ elevenlabsKey: ${ELEVENLABS_KEY}
 
 # Redis Cache Configuration
 redis:
-  enabled: ${REDIS_ENABLED:-false}
+  enabled: ${REDIS_ENABLED:-true}
   url: ${REDIS_URL:-redis://localhost:6379}
   ttl: ${REDIS_TTL:-3600}
 
 # Postgres Persistence Configuration
 postgres:
-  enabled: ${POSTGRES_ENABLED:-false}
+  enabled: ${POSTGRES_ENABLED:-true}
   url: ${POSTGRES_URL:-postgresql://bot:bot@localhost:5432/bot}
 
 # Web Search Configuration

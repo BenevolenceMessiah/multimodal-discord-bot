@@ -1,5 +1,9 @@
 import fetch from "node-fetch";
-import { config } from "../config.js";
+import { config } from "../src/config.js";
+
+interface SDResponse {
+  images?: string[];
+}
 
 export async function generateImage(prompt: string): Promise<Buffer> {
   const payload = {
@@ -12,6 +16,9 @@ export async function generateImage(prompt: string): Promise<Buffer> {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Stable Diffusion error ${res.status}`);
-  const data = await res.json();
+  
+  // Type assertion ensures TypeScript knows the structure
+  const data = (await res.json()) as SDResponse;
+  if (!data?.images?.[0]) throw new Error("No image returned from API");
   return Buffer.from(data.images[0], "base64");
 }

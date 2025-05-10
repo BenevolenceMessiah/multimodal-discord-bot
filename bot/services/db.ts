@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { config } from '../config.js';
+import { config } from '../src/config.js';
 
 let pool: Pool;
 if (config.postgres?.enabled) {

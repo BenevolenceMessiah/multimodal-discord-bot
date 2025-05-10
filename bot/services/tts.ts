@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import fs from "fs/promises";
-import { config } from "../config.js";
-import { logger } from "../utils/logger.js";
+import { config } from "../src/config.js";
+import { logger } from "../src/utils/logger.js";
 import { randomUUID } from "crypto";
 
 export async function synthesize(text: string): Promise<string> {
@@ -11,7 +11,8 @@ export async function synthesize(text: string): Promise<string> {
 async function alltalk(text: string): Promise<string> {
   const form = new URLSearchParams();
   form.append("text", text);
-  form.append("voice", config.modelAlltalk);
+  const model = config.modelAlltalk || 'xtts_v2'; // ← Provide default value
+form.append("voice", model);
   const res = await fetch(`${config.endpoints.alltalk}/api/tts-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

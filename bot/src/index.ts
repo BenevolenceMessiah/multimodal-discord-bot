@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 import {
   Client,
   GatewayIntentBits,
@@ -6,26 +6,29 @@ import {
   Collection,
   REST,
   Routes,
-  Interaction,
+  ChatInputCommandInteraction,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
 import { config } from './config.js';
 
-// Command registrations
-import { data as imgData, execute as imgExec } from './commands/img.js';
-import { data as sayData, execute as sayExec } from './commands/say.js';
-import { data as webData, execute as webExec } from './commands/web.js';
-import { data as threadData, execute as threadExec } from './commands/thread.js';
-import { data as threadPrivData, execute as threadPrivExec } from './commands/threadPrivate.js';
-import { data as clearData, execute as clearExec } from './commands/clear.js';
+/* ─── Command registrations ─── */
+import { data as imgData, execute as imgExec } from '../commands/img.js';
+import { data as sayData, execute as sayExec } from '../commands/say.js';
+import { data as webData, execute as webExec } from '../commands/web.js';
+import { data as threadData, execute as threadExec } from '../commands/thread.js';
+import { data as threadPrivData, execute as threadPrivExec } from '../commands/threadPrivate.js';
+import { data as clearData, execute as clearExec } from '../commands/clear.js';
 
-// Services
-import { pushMessage, getContext, clearContext } from './services/cache.js';
-import { logInteraction } from './services/db.js';
-import { generateText } from './services/llm.js';
+/* ─── Services ─── */
+import { pushMessage, getContext } from '../services/cache.js';
+import { logInteraction } from '../services/db.js';
+import { generateText } from '../services/llm.js';
 
-// Build command maps
-type CmdHandler = (interaction: Interaction) => Promise<void>;
+/* ─── Command map ─── */
+
+// Use ChatInputCommandInteraction instead of Interaction for better typing
+type CmdHandler = (i: ChatInputCommandInteraction) => Promise<void>;
+
 const commands = [
   imgData,
   sayData,
@@ -34,16 +37,17 @@ const commands = [
   threadPrivData,
   clearData,
 ];
+
 const handlers = new Collection<string, CmdHandler>([
-  ['img', imgExec as any],
-  ['say', sayExec as any],
-  ['web', webExec as any],
-  ['thread', threadExec as any],
-  ['thread-private', threadPrivExec as any],
-  ['clear', clearExec as any],
+  ['img', imgExec],
+  ['say', sayExec],
+  ['web', webExec],
+  ['thread', threadExec],
+  ['thread-private', threadPrivExec],
+  ['clear', clearExec],
 ]);
 
-// Initialize Discord client
+/* ─── Discord client ─── */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -58,34 +62,39 @@ client.once('ready', () => {
   logger.info(`Logged in as ${client.user?.tag}`);
 });
 
-// Slash-command handling
+/* ─── Slash-command dispatcher ─── */
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   const start = Date.now();
   const handler = handlers.get(interaction.commandName);
   if (!handler) return;
+
   try {
     await handler(interaction);
-    const latency = Date.now() - start;
     await logInteraction(
       interaction.guildId ?? 'dm',
       interaction.user.id,
       interaction.commandName,
-      latency
+      Date.now() - start,
     );
-  } catch (e: any) {
-    logger.error(e);
+  } catch (err) {
+    logger.error(err);
     if (!interaction.replied) {
-      await interaction.reply({ content: '❌ Error executing command', ephemeral: true });
+      await interaction.reply({
+        content: '❌ Error executing command',
+        ephemeral: true,
+      });
     }
   }
 });
 
-// Mention & wake-word chat handling
+/* ─── Wake-word listener ─── */
 client.on('messageCreate', async (msg) => {
   if (msg.author.bot) return;
   const mentioned = msg.mentions.has(client.user!.id);
-  const wake = config.wakeWords.some((w) => msg.content.toLowerCase().includes(w.toLowerCase()));
+  const wake = config.wakeWords.some((w) =>
+    msg.content.toLowerCase().includes(w.toLowerCase()),
+  );
   if (!(mentioned || wake)) return;
 
   await pushMessage(msg.channelId, `${msg.author.username}: ${msg.content}`);
@@ -95,13 +104,14 @@ client.on('messageCreate', async (msg) => {
   await msg.reply(reply);
 });
 
-// Register and start
-overall:
+/* ─── Register slash-commands & start ─── */
 (async () => {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN!);
+
   await rest.put(Routes.applicationCommands(process.env.CLIENT_ID!), {
-    body: commands.map((cmd) => cmd.toJSON()),
+    body: commands.map((c) => c.toJSON()),
   });
   logger.info('Registered slash commands');
+
   await client.login(process.env.DISCORD_TOKEN);
 })();

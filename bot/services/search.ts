@@ -1,7 +1,15 @@
 import fetch from 'node-fetch';
-import { config } from '../config.js';
+import { config } from '../src/config.js';
 import { generateText } from './llm.js';
-import { logger } from '../utils/logger.js';
+import { logger } from '../src/utils/logger.js';
+
+interface TavilyResult {
+  title: string;
+  url: string;
+}
+interface TavilyResponse {
+  results?: TavilyResult[];
+}
 
 export async function tavilySearch(query: string): Promise<string> {
   const key = config.search?.tavilyKey;
@@ -9,14 +17,15 @@ export async function tavilySearch(query: string): Promise<string> {
   const url = `https://api.tavily.com/search?api_key=${key}&query=${encodeURIComponent(query)}&max_results=5`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Tavily ${res.status}`);
-  const data = await res.json();
-  return data.results?.map((r: any) => `• ${r.title} – ${r.url}`).join('\n') || 'No results';
+  
+  // Type assertion for Tavily response
+  const data = (await res.json()) as TavilyResponse;
+  return data.results?.map((r: TavilyResult) => `• ${r.title} – ${r.url}`).join('\n') || 'No results';
 }
 
 export async function smartSearch(prompt: string): Promise<string> {
   let query = prompt;
   try {
-    // ask LLM to craft a focused query in <8 words
     const crafted = await generateText(`In 8 words or fewer, create a web‑search query for: ${prompt}`);
     query = crafted.trim();
   } catch (err) {

@@ -1,9 +1,11 @@
 import Redis from 'ioredis';
-import { config } from '../config.js';
+import { config } from '../src/config.js';
+import { logger } from '../src/utils/logger.js';
 
-let redis: Redis.Redis;
-if (config.redis?.enabled) {
-  redis = new Redis(config.redis.url);
+let redis: Redis | null = null;
+
+if (config.redis && config.redis.enabled) {
+  redis = new Redis(config.redis.url || 'redis://localhost:6379');
 }
 
 export async function pushMessage(channel: string, msg: string) {
