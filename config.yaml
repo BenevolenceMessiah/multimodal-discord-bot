@@ -7,49 +7,65 @@ imagegenProvider: ${IMAGEGEN_PROVIDER:-stablediffusion}
 modelOllama: ${MODEL_OLLAMA}
 modelOpenrouter: ${MODEL_OPENROUTER}
 modelAlltalk: ${MODEL_ALLTALK}
-fluxModelName: ${FLUX_MODEL_NAME}
 
-# System Prompt (supports Markdown, lists, headings)
+# ─── FLUX block ────────────────────────────────────────
+flux:
+  enabled: ${FLUX_ENABLED:-true}
+  modelName: ${FLUX_MODEL_NAME}
+  steps: ${FLUX_STEPS:-20}
+  sampler: ${FLUX_SAMPLER:-Euler}
+  schedule: ${FLUX_SCHEDULE:-Simple}
+  cfgScale: ${FLUX_CFG_SCALE:-1}
+  distilledCfg: ${FLUX_DISTILLED_CFG:-3.5}
+  seed: ${FLUX_SEED:--1}
+  width: ${FLUX_WIDTH:-896}
+  height: ${FLUX_HEIGHT:-1152}
+  modules:
+    - ${FLUX_MODULE_1}
+    - ${FLUX_MODULE_2}
+    - ${FLUX_MODULE_3}
+
+# System Prompt (Markdown allowed)
 systemMessage: |
   ${SYSTEM_MESSAGE:-"""
   # System Rules
   You are a helpful Discord bot.
   """}
 
-# Generation Parameters
+# Generation parameters
 maxTokens: ${MAX_TOKENS:-2048}
-keepAlive: ${KEEP_ALIVE:-0}    # Ollama model retention: seconds or 0
+keepAlive: ${KEEP_ALIVE:-10}
 contextLength: ${CONTEXT_LENGTH:-4096}
 temperature: ${TEMPERATURE:-0.3}
 stream: ${STREAM:-false}
 
-# Automatic context rollup
+# Context roll‑up
 wakeWords: ${WAKE_WORDS:-["hey bot","listen"]}
 maxLines: ${MAX_LINES:-25}
 
-# Service Endpoints
+# Endpoints
 endpoints:
-  ollama: ${OLLAMA_URL:-http://127.0.0.1:11434}
-  stablediffusion: ${SD_URL:-http://127.0.0.1:7860}
-  alltalk: ${ALLTALK_URL:-http://127.0.0.1:7851}
+  ollama: ${OLLAMA_URL:-http://host.docker.internal:11434}
+  stablediffusion: ${SD_URL:-http://host.docker.internal:7860}
+  alltalk: ${ALLTALK_URL:-http://host.docker.internal:7851}
   elevenlabs: ${ELEVENLABS_URL:-https://api.elevenlabs.io/v1}
 
-# API Keys
+# Keys
 openrouterKey: ${OPENROUTER_KEY}
 elevenlabsKey: ${ELEVENLABS_KEY}
 
-# Redis Cache Configuration
+# Redis
 redis:
   enabled: ${REDIS_ENABLED:-true}
   url: ${REDIS_URL:-redis://localhost:6379}
   ttl: ${REDIS_TTL:-3600}
 
-# Postgres Persistence Configuration
+# Postgres
 postgres:
   enabled: ${POSTGRES_ENABLED:-true}
   url: ${POSTGRES_URL:-postgresql://bot:bot@localhost:5432/bot}
 
-# Web Search Configuration
+# Search
 search:
   provider: ${SEARCH_PROVIDER:-tavily}
   tavilyKey: ${TAVILY_KEY}

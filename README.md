@@ -1,48 +1,66 @@
-# Multimodal Discord Bot 🤖🎨🎤
+# Multimodal Discord Bot 🤖🎨🎤🌐  
 
-A feature-rich Discord bot with **AI-powered text generation**, **image creation**, and **voice synthesis** capabilities. Built with TypeScript and Docker for seamless deployment. Choose between local or cloud-based AI providers for each modality!
+**The Ultimate AI Assistant for Discord with Text, Image, Voice, and Web Search Capabilities**  
 
-## 🌟 Features
+A feature-rich Discord bot with **AI-powered text generation**, **image creation**, **voice synthesis**, and **web search integration**. Built with TypeScript and Docker for seamless deployment. Choose between local or cloud-based AI providers for each modality, and enjoy hybrid capabilities across all services!  
 
-### 🤖 Intelligent Text Generation
+---
 
-- **Local AI**: Ollama amd AllTalk TTS integration for private LLM interactions
-- **Cloud AI**: OpenRouter and ElevenLabs support for cutting-edge models.
-- Context-aware conversations with configurable memory
-- System message customization for personality control,
+## 🌟 Key Features  
 
-### 🎨 Dynamic Image Generation
+### 🤖 Intelligent Text Generation  
 
-- Integration with Stable Diffusion WebUI Forge
-- Support for custom model checkpoints
-- High-quality image synthesis from text prompts
-- Fast GPU-accelerated generation (when using local SD instance)
+- **Local AI**: Ollama integration for private LLM interactions (supports GGUF models)  
+- **Cloud AI**: OpenRouter support for cutting-edge models (e.g., DeepSeek, Llama, Mistral)  
+- Context-aware conversations with **channel-specific memory**  
+- **System message customization** for personality control  
+- **Hybrid mode**: Mix local/cloud providers for different modalities  
 
-### 🎤 Natural Voice Synthesis
+### 🎨 Dynamic Image Generation  
 
-- **Local TTS**: AllTalk for private voice generation
-- **Cloud TTS**: ElevenLabs integration for human-like voices
-- Automatic voice message handling
-- Multiple voice model support
+- Integration with **Stable Diffusion WebUI Forge** for high-quality image synthesis  
+- **Custom model support** via `FLUX_MODEL_NAME` (e.g., EVERFLUX_x1)  
+- Text-to-image generation with configurable steps (default: 28)  
+- Fast GPU-accelerated generation when using local SD instance  
 
-### ⚙️ Infrastructure
+### 🎤 Natural Voice Synthesis  
 
-- Redis-based conversation caching
-- PostgreSQL interaction logging
-- Docker-first architecture
-- Configurable through environment variables
-- Modular command system
+- **Local TTS**: AllTalk for private voice generation  
+- **Cloud TTS**: ElevenLabs integration for human-like voices  
+- Automatic voice message handling with **model-specific voice profiles**  
+- Multiple voice model support via provider configuration  
 
-## 🚀 Quick Start
+### 🔍 Web Search Integration  
 
-### Prerequisites
+- **Tavily-powered search** for real-time information retrieval  
+- Smart query generation using LLM to optimize search results  
+- Returns formatted results with titles and URLs  
+- Configurable via `SEARCH_PROVIDER` and `TAVILY_KEY`  
 
-- Node.js 18+
-- Docker & Docker Compose
-- Discord Developer Account
-- AI Provider Accounts (as needed)
+### ⚙️ Infrastructure & Scalability  
 
-### Installation
+- **Redis-based conversation caching** with TTL (Time-to-Live) control  
+- **PostgreSQL interaction logging** for analytics and auditing  
+- **Docker-first architecture** with Redis, PostgreSQL, and AI services  
+- Configurable through environment variables and YAML  
+- Modular command system for easy extensibility  
+
+---
+
+## 🚀 Quick Start Guide  
+
+### Prerequisites  
+
+- **Node.js 23+** (Docker uses `node:23-alpine`)  
+- Docker & Docker Compose  
+- Discord Developer Account (for bot token)  
+- AI Provider Accounts:  
+  - Ollama (local) or OpenRouter (cloud) for text  
+  - Stable Diffusion Forge (local) for images  
+  - AllTalk (local) or ElevenLabs (cloud) for voice  
+  - Tavily (cloud) for web search  
+
+### Installation  
 
 ```bash
 # Clone repository
@@ -50,7 +68,7 @@ git clone https://github.com/BenevolenceMessiah/multimodal-discord-bot
 cd multimodal-discord-bot
 
 # Copy environment template
-cp .env.example .env
+cp .env.sample .env
 
 # Configure your settings (see below)
 nano .env
@@ -58,88 +76,88 @@ nano .env
 # Build and start containers
 docker compose build
 docker compose up -d
-```
+```  
 
-## 🔧 Configuration
+---
 
-### Essential Environment Variables (`/.env`)
+## 🔧 Configuration  
+
+### Essential Environment Variables (`.env`)  
 
 ```env
-# Discord Configuration
+# Discord Bot Credentials
 DISCORD_TOKEN=your_bot_token
 CLIENT_ID=your_application_id
-GUILD_ID=your_server_id
+GUILD_ID=your_server_id  # Optional for dev
 
 # AI Providers
-TEXTGEN_PROVIDER=ollama             # ollama | openrouter
-VOICEGEN_PROVIDER=alltalk           # alltalk | elevenlabs
-IMAGEGEN_PROVIDER=stablediffusion
+TEXTGEN_PROVIDER=ollama        # "ollama" or "openrouter"
+VOICEGEN_PROVIDER=alltalk     # "alltalk" or "elevenlabs"
+IMAGEGEN_PROVIDER=stablediffusion  # "stablediffusion"
 
-# API Keys (if using cloud services)
+# API Keys (for cloud services)
 OPENROUTER_KEY=your_openrouter_key
 ELEVENLABS_KEY=your_elevenlabs_key
-```
+TAVILY_KEY=your_tavily_key  # ← New addition
 
-### AI Endpoints Configuration (`/config.yaml`)
+# Performance Tuning
+TEMPERATURE=0.4          # 0-1, higher = more creative
+MAX_TOKENS=8192          # Maximum response length
+CONTEXT_LENGTH=32768   # Conversation history limit
+MAX_LINES=25           # Visible message history
+KEEP_ALIVE=0            # Ollama model retention (0 unloads immediately)
+WAKE_WORDS=bot,help    # Comma-separated wake words
+```  
+
+### AI Endpoints Configuration (`config.yaml`)  
 
 ```yaml
 endpoints:
   ollama: http://127.0.0.1:11434          # Local Ollama instance
-  stablediffusion: http://127.0.0.1:7860  # Stable Diffusion WebUI
+  stablediffusion: http://127.0.0.1:7860  # Stable Diffusion WebUI Forge
   alltalk: http://127.0.0.1:7851          # AllTalk TTS server
-  elevenlabs: https://api.elevenlabs.io/v1
-```
+  elevenlabs: https://api.elevenlabs.io/v1 # ElevenLabs base URL
 
-## 🎮 Command Reference
+# Redis Cache Configuration
+redis:
+  enabled: true
+  url: redis://redis:6379
+  ttl: -1  # No expiry by default
 
-### Core Commands
+# PostgreSQL Persistence
+postgres:
+  enabled: true
+  url: postgresql://bot:bot@postgres:5432/bot
 
-| Command         | Description                      | Example                     |
-|-----------------|----------------------------------|-----------------------------|
-| `/say [prompt]` | Force immediate AI response      | `/say Explain quantum physics` |
-| `/img [prompt]` | Generate image from text         | `/img Mystical forest at dusk`|
-| `/clear`        | Reset conversation memory        | `/clear`                     |
+# Web Search Settings
+search:
+  provider: tavily  # ← New section
+  tavilyKey: ${TAVILY_KEY}
+```  
 
-### Thread Management
+---
 
-| Command               | Description                      | Example Usage            |
-|-----------------------|----------------------------------|--------------------------|
-| `/thread`             | Create public discussion thread  | `/thread`                |
-| `/thread-private`     | Create private thread            | `/thread-private`        |
+## 🎮 Command Reference  
 
-## 🛠 Advanced Setup
+### Core Commands  
 
-### Text Generation Options
+| Command         | Description                      | Example                     |  
+|-----------------|----------------------------------|-----------------------------|  
+| `/say [prompt]` | Force immediate AI response      | `/say Explain quantum physics` |  
+| `/img [prompt]` | Generate image from text         | `/img Mystical forest at dusk` |  
+| `/clear`        | Reset conversation memory        | `/clear`                    |  
+| `/web [topic]`  | Run a Tavily web search        | `/web Current weather in Tokyo` |  
 
-```env
-# Ollama Configuration
-MODEL_OLLAMA=hf.co/.../FuseChat-Qwen-2.5-7B-Instruct-Q8_0-GGUF:Q8_0
+### Thread Management  
 
-# OpenRouter Configuration
-MODEL_OPENROUTER=deepseek/deepseek-chat-v3-0324:free
-```
+| Command               | Description                      | Example Usage            |  
+|-----------------------|----------------------------------|--------------------------|  
+| `/thread [name]`      | Create public discussion thread  | `/thread General Chat`   |  
+| `/thread-private [name]` | Create private thread with invites | `/thread-private Secret Discussion` |  
 
-### Voice Synthesis Settings
+---
 
-```env
-# AllTalk Configuration
-MODEL_ALLTALK=standard
-ALLTALK_URL=http://127.0.0.1:7851
-
-# ElevenLabs Configuration
-ELEVENLABS_KEY=your_api_key
-```
-
-### Performance Tuning
-
-```env
-TEMPERATURE=0.4          # 0-1, higher = more creative
-MAX_TOKENS=8192          # Maximum response length
-CONTEXT_LENGTH=32768     # Conversation history limit
-MAX_LINES=25             # Visible message history
-```
-
-## 🏗 Architecture
+## 🏗 Architecture Overview  
 
 ```mermaid
 graph TD
@@ -147,66 +165,90 @@ graph TD
     B --> C[Text Generation]
     B --> D[Image Generation]
     B --> E[Voice Synthesis]
-    C --> F[Ollama/OpenRouter]
-    D --> G[Stable Diffusion]
-    E --> H[AllTalk/ElevenLabs]
-    B --> I[Redis Cache]
-    B --> J[PostgreSQL DB]
-```
+    B --> F[Web Search]
+    C --> G[Ollama/OpenRouter]
+    D --> H[Stable Diffusion Forge]
+    E --> I[AllTalk/ElevenLabs]
+    F --> J[Tavily Search API]
+    B --> K[Redis Cache]
+    B --> L[PostgreSQL DB]
+```  
 
-## 📦 Dependencies
+---
 
-### Core Services
+## 📦 Dependencies  
 
-- **Redis**: Conversation caching and message history
-- **PostgreSQL**: Interaction logging and analytics
-- **Docker**: Containerized service orchestration
+### Core Services  
 
-### AI Providers
+- **Redis**: Conversation caching and message history  
+- **PostgreSQL**: Interaction logging and analytics  
+- **Docker**: Container orchestration for all services  
+
+### AI Providers  
 
 ```mermaid
 pie
-    title Provider Options
-    "Local (Ollama)": 45
-    "Cloud (OpenRouter)": 55
-```
+    title Modality Providers
+    "Local (Ollama)": 30
+    "Cloud (OpenRouter)": 30
+    "Local (Stable Diffusion)": 15
+    "Cloud (ElevenLabs)": 15
+    "Cloud (Tavily)": 10
+```  
 
-## 💡 Usage Tips
+---
 
-1. **Wake Words**: Use natural triggers like "hey bot" in conversation
-2. **Context Awareness**: The bot maintains channel-specific memory
-3. **Hybrid Mode**: Mix local and cloud providers for different modalities
-4. **Rate Limiting**: Built-in safeguards prevent API abuse
+## 💡 Usage Tips  
 
-## 🚨 Troubleshooting
+1. **Wake Words**: Use natural triggers like "hey bot" in conversations  
+2. **Context Awareness**: The bot maintains separate memory per channel  
+3. **Hybrid Mode**: Combine local (Ollama/AllTalk) and cloud (OpenRouter/ElevenLabs) providers  
+4. **Rate Limiting**: Built-in safeguards prevent API abuse  
+5. **Web Research**: Use `/web` to fetch up-to-date information for complex queries  
 
-Common Issues:
+---
 
-- **Connection Errors**: Verify AI service URLs in `config.yaml`
-- **Permission Issues**: Ensure bot has proper Discord permissions
-- **Memory Limits**: Adjust `MAX_TOKENS` and `CONTEXT_LENGTH` as needed
+## 🚨 Troubleshooting  
 
-View logs with:
+Common Issues:  
+
+- **Connection Errors**: Verify AI service URLs in `config.yaml`  
+- **Permission Issues**: Ensure bot has `Send Messages`, `Manage Threads`, and `Read Message History`  
+- **Memory Limits**: Adjust `MAX_TOKENS` and `CONTEXT_LENGTH` in `.env`  
+- **Search Failures**: Check `TAVILY_KEY` and `SEARCH_PROVIDER`  
+
+View logs with:  
 
 ```bash
 docker compose logs -f bot
-```
+```  
 
-## 📚 Documentation Links
+---
 
-- [Ollama Setup Guide](https://ollama.ai)
-- [Stable Diffusion WebUI Documentation](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
-- [Discord Developer Portal](https://discord.com/developers/docs)
+## 📚 Documentation Links  
 
-## 🤝 Contributing
+- [Ollama Setup Guide](https://ollama.ai)  
+- [Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge)  
+- [AllTalk TTS Server](https://github.com/erew123/alltalk_tts)  
+- [ElevenLabs API Docs](https://elevenlabs.io/docs)  
+- [Tavily Search API](https://docs.tavily.com)  
+- [Discord Developer Portal](https://discord.com/developers/docs)  
 
-PRs welcome! Please follow our [contribution guidelines]
+---
 
-1. Maintain TypeScript type safety
-2. Keep Docker compatibility
-3. Add tests for new features
-4. Update documentation accordingly
+## 🤝 Contributing  
 
-## 📜 License
+PRs welcome! Please follow these guidelines:
 
-MIT License - See [LICENSE](LICENSE) for details
+1. Maintain **TypeScript type safety**  
+2. Keep **Docker compatibility**  
+3. Add **tests for new features**  
+4. Update **documentation** (including this README)  
+5. Use **modular command structure**  
+
+---
+
+## 📜 License  
+
+MIT License - See [LICENSE](LICENSE) for details  
+Copyright (c) 2025 Benevolence Messiah  

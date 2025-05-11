@@ -11,6 +11,11 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
   const prompt = interaction.options.getString("prompt", true);
-  const img = await generateImage(prompt);
-  await interaction.editReply({ files: [{ attachment: img, name: "image.png" }] });
+  try {
+    const img = await generateImage(prompt);
+    await interaction.editReply({ files: [{ attachment: img, name: "image.png" }] });
+  } catch (error: any) {
+    console.error("Error generating image:", error); // Log the actual error
+    await interaction.editReply({ content: `❌ Failed to generate image: ${error.message}` });
+  }
 }
