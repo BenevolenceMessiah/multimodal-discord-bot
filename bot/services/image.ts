@@ -12,16 +12,20 @@ export async function generateImage(prompt: string): Promise<Buffer> {
     const body: any = {
       prompt,
       steps: config.flux.steps,
+      //sampler_name: capitalize(config.flux.sampler),
       sampler_name: config.flux.sampler,
-      // sd_model_checkpoint: config.flux.modelName,
-      model_checkpoint: config.flux.modelName,
-      flux_schedule_type: config.flux.schedule, // Ensure this is top-level for the API
+      sd_model_checkpoint: config.flux.modelName,
+      //model_checkpoint: config.flux.modelName,
+      sd_vae: config.flux.modules[2],
+      flux_schedule_type: config.flux.schedule.toLowerCase(), // Ensure this is top-level for the API
       flux_distilled_cfg_scale: config.flux.distilledCfg,
       cfg_scale: config.flux.cfgScale,          // keep 1 for FLUX
       width: config.flux.width,
       height: config.flux.height,
       seed: config.flux.seed,
       override_settings: {
+        //sampler_name: capitalize(config.flux.sampler),
+        //sd_vae: config.flux.modules[2],
         //model_checkpoint: config.flux.modelName,
         //sd_model_checkpoint: config.flux.modelName,
         //flux_schedule_type: config.flux.schedule, // Kept here as per your structure, might be redundant or specific to FLUX override
@@ -33,24 +37,17 @@ export async function generateImage(prompt: string): Promise<Buffer> {
     logger.info(`Forge payload → ${JSON.stringify(body).slice(0, 200)}…`);
 
     const res = await fetch(
-      `${config.endpoints.stablediffusion}/sdapi/v1/txt2img`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-    );
+    `${config.endpoints.stablediffusion}/sdapi/v1/txt2img`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+  );
+  if (!res.ok) throw new Error(`Forge API ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { images: string[] };
+  return Buffer.from(data.images[0], 'base64');
+}
 
-    if (!res.ok) {
-        const errorBodyText = await res.text();
-        logger.error(`Forge API error ${res.status}: ${errorBodyText}`);
-        // Attempt to parse as JSON if possible, otherwise use text
-        try {
-            const errorJson = JSON.parse(errorBodyText);
-            throw new Error(`Forge API status ${res.status}: ${errorJson.message || errorJson.error || JSON.stringify(errorJson)}`);
-        } catch (e) {
-            throw new Error(`Forge API status ${res.status}: ${errorBodyText}`);
-        }
-    }
-    const data = (await res.json()) as { images: string[] };
-    return Buffer.from(data.images[0], 'base64');
-  }
+function capitalize(s: string) {
+  return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+}
 
   /* ───── regular SD path ───── */
   // This path would be taken if config.flux.enabled is false

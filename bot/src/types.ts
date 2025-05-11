@@ -18,7 +18,16 @@ export interface BotConfig {
     modelName: string;                 // checkpoint: EVERFLUX_x1 …
     steps: number;                     // sampling steps
     sampler: string;                   // Euler, DPM++ 2M, etc.
-    schedule: 'Simple' | 'Karras' | 'Exponential';
+    //sampler:
+  //| 'Euler' | 'Euler a' | 'LMS' | 'Heun' | 'Heun++'
+  //| 'DPM2' | 'DPM2 a'
+  //| 'DPM++ 2S a' | 'DPM++ 2S a Karras'
+  //| 'DPM++ 2M' | 'DPM++ 2M Karras' | 'DPM++ 2M SDE' | 'DPM++ 2M SDE Karras'
+  //| 'DPM++ 3M' | 'DPM++ 3M SDE' | 'DPM++ 3M SDE Karras'
+  //| 'DPM++ SDE' | 'DPM++ SDE Karras'
+  //| 'DDIM' | 'PLMS' | 'DPM fast' | 'DPM adaptive' | 'Restart'
+  //| 'UniPC' | 'LCM';
+    schedule: 'simple' | 'karras' | 'exponential';
     cfgScale: number;                  // keep 1 for Flux
     distilledCfg: number;              // 3‑4 recommended
     seed: number;                      // -1 = random
