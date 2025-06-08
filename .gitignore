@@ -48,6 +48,7 @@ temp/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+system_prompt.md
 
 # Config files (if you want to exclude local config overrides)
 config.local.yaml

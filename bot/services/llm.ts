@@ -1,6 +1,37 @@
 import fetch from "node-fetch";
 import { config } from "../src/config.js";
 import { logger } from "../src/utils/logger.js";
+import fs from 'fs/promises';
+import path from 'path';
+
+// Cache for resolved system messages
+let resolvedSystemMessage: string | null = null;
+
+/**
+ * Load and resolve the system message from config
+ * Handles both direct strings and file references
+ */
+async function loadSystemMessage(): Promise<string> {
+  if (resolvedSystemMessage) return resolvedSystemMessage;
+  
+  const msg = config.systemMessage;
+  
+  if (typeof msg === 'string' && msg.startsWith('file:')) {
+    try {
+      // Extract file path and resolve relative to app root
+      const filePath = path.resolve(process.cwd(), msg.slice(5).trim());
+      resolvedSystemMessage = await fs.readFile(filePath, 'utf-8');
+      logger.info(`Loaded system prompt from ${filePath}`);
+    } catch (err) {
+      logger.error(`Failed to load system prompt file: ${(err as Error).message}`);
+      resolvedSystemMessage = "System prompt could not be loaded"; // Fallback
+    }
+  } else {
+    resolvedSystemMessage = msg as string;
+  }
+  
+  return resolvedSystemMessage;
+}
 
 // Main function to generate text, routes to the configured provider
 export async function generateText(prompt: string): Promise<string> {
@@ -11,24 +42,26 @@ export async function generateText(prompt: string): Promise<string> {
   return generateOpenRouter(prompt);
 }
 
-// ----- Ollama Specific -----
-
+// Ollama Specific
 interface OllamaResponse {
   response: string;
-  // Add other fields from Ollama's response if they become necessary
-  // e.g., done, context, total_duration, etc.
 }
 
 async function generateOllama(prompt: string): Promise<string> {
-  // Ensure numeric and boolean values are correctly typed for Ollama
   const temperature = parseFloat(config.temperature as any);
   const maxTokens = parseInt(config.maxTokens as any, 10);
   const contextLength = parseInt(config.contextLength as any, 10);
   
+  const systemMessage = await loadSystemMessage(); // Use resolved prompt
+  
   let keepAliveVal: number | string;
   if (typeof config.keepAlive === 'string' && /^\d+$/.test(config.keepAlive)) {
     keepAliveVal = parseInt(config.keepAlive, 10);
-  } else if (typeof config.keepAlive === 'string' && (config.keepAlive.endsWith('m') || config.keepAlive.endsWith('s') || config.keepAlive.endsWith('h'))) {
+  } else if (typeof config.keepAlive === 'string' && (
+      config.keepAlive.endsWith('m') || 
+      config.keepAlive.endsWith('s') || 
+      config.keepAlive.endsWith('h')
+    )) {
     keepAliveVal = config.keepAlive;
   } else if (typeof config.keepAlive === 'number') {
     keepAliveVal = config.keepAlive;
@@ -37,14 +70,22 @@ async function generateOllama(prompt: string): Promise<string> {
     logger.warn(`Unexpected keepAlive format: '${config.keepAlive}', defaulting to "5m" for Ollama.`);
   }
 
-  // Correctly use config.stream, assuming it's already a boolean
   const streamVal = Boolean(config.stream); 
-  // If you are absolutely sure config.stream is always a boolean and never undefined/null,
-  // you could even simplify to: const streamVal = config.stream;
-
+  
+  // Prepend system message to prompt
+  const augmentedPrompt = `
+  ### System:
+  ${systemMessage}
+  
+  ### User:
+  ${prompt}
+  
+  ### Assistant:
+  `;
+  
   const body = {
     model: config.modelOllama,
-    prompt,
+    prompt: augmentedPrompt,
     stream: streamVal,
     options: {
       temperature: temperature,
@@ -55,10 +96,10 @@ async function generateOllama(prompt: string): Promise<string> {
     keep_alive: keepAliveVal
   };
 
-  const ollamaEndpoint = config.endpoints.ollama || 'http://localhost:11434'; // Sensible default
+  const ollamaEndpoint = config.endpoints.ollama || 'http://localhost:11434';
   
   logger.debug(`Ollama request body: ${JSON.stringify(body)} to endpoint ${ollamaEndpoint}/api/generate`);
-
+  
   const res = await fetch(`${ollamaEndpoint}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -71,35 +112,30 @@ async function generateOllama(prompt: string): Promise<string> {
     throw new Error(`Ollama error ${res.status} for prompt: "${prompt.substring(0,100)}..."`);
   }
   
-  // Assuming OllamaResponse type matches the actual non-streaming response structure
   const data = (await res.json()) as OllamaResponse; 
   return data.response.trim();
 }
 
-// ----- OpenRouter Specific -----
-
+// OpenRouter Specific
 interface OpenRouterChoice {
-  message: { content: string; role?: string }; // Role might be useful for logging/debugging
+  message: { content: string; role?: string };
 }
+
 interface OpenRouterResponse {
   choices?: OpenRouterChoice[];
-  // Add other fields from OpenRouter's response if needed
-  // e.g., id, model, usage statistics, etc.
 }
 
 async function generateOpenRouter(prompt: string): Promise<string> {
-  // Ensure numeric values are correctly typed before sending to OpenRouter
   const temperature = parseFloat(config.temperature as any);
   const maxTokens = parseInt(config.maxTokens as any, 10);
+  const systemMessage = await loadSystemMessage(); // Use resolved prompt
 
   const body = {
     model: config.modelOpenrouter,
-    // stream: false, // For OpenRouter's /chat/completions, streaming is a separate setup (SSE)
-                     // and `stream: false` is implicit for standard JSON response.
     temperature: temperature,
     max_tokens: maxTokens,
     messages: [
-      { role: "system", content: config.systemMessage },
+      { role: "system", content: systemMessage },
       { role: "user", content: prompt },
     ],
   };
@@ -129,6 +165,5 @@ async function generateOpenRouter(prompt: string): Promise<string> {
   return data.choices[0].message.content.trim();
 }
 
-// Export individual generators in case they are used directly elsewhere,
-// though generateText is the primary intended public interface from this module.
+// Export individual generators
 export { generateOllama, generateOpenRouter };

@@ -3,9 +3,9 @@ import { config } from "../src/config.js";
 
 const memory = new Collection<Snowflake, string[]>();
 
-export function pushMessage(channelId: Snowflake, content: string) {
+export function pushMessage(channelId: Snowflake, author: string, content: string) {
   const arr = memory.get(channelId) ?? [];
-  arr.push(content);
+  arr.push(`${author}: ${content}`);  // Add username prefix
   if (arr.length > config.maxLines) arr.shift();
   memory.set(channelId, arr);
 }

@@ -17,7 +17,8 @@ export async function generateImage(prompt: string): Promise<Buffer> {
       sd_model_checkpoint: config.flux.modelName,
       //model_checkpoint: config.flux.modelName,
       sd_vae: config.flux.modules[2],
-      flux_schedule_type: config.flux.schedule.toLowerCase(), // Ensure this is top-level for the API
+      flux_schedule_type: config.flux.schedule,
+      //flux_schedule_type: config.flux.schedule.toLowerCase(), // Ensure this is top-level for the API
       flux_distilled_cfg_scale: config.flux.distilledCfg,
       cfg_scale: config.flux.cfgScale,          // keep 1 for FLUX
       width: config.flux.width,

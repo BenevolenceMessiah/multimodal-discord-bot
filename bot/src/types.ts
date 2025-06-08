@@ -27,7 +27,8 @@ export interface BotConfig {
   //| 'DPM++ SDE' | 'DPM++ SDE Karras'
   //| 'DDIM' | 'PLMS' | 'DPM fast' | 'DPM adaptive' | 'Restart'
   //| 'UniPC' | 'LCM';
-    schedule: 'simple' | 'karras' | 'exponential';
+    //schedule: 'simple' | 'karras' | 'exponential';
+    schedule: 'Simple' | 'Karras' | 'Exponential';
     cfgScale: number;                  // keep 1 for Flux
     distilledCfg: number;              // 3‑4 recommended
     seed: number;                      // -1 = random

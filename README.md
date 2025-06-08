@@ -76,7 +76,18 @@ nano .env
 # Build and start containers
 docker compose build
 docker compose up -d
-```  
+```
+
+-Or, if you want your bot to have a personality and a more complex system prompt (suggested)-
+
+1. create a file called `system_prompt.md` and load it with as much stuff as you want.
+2. Set SYSTEM_MESSAGE="file:./system_prompt.md" in .env
+3. Build and run the bot:
+
+```bash
+# Build and start containers
+docker compose build && docker compose up -d
+```
 
 ---
 

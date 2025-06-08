@@ -1,21 +1,60 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import {
+  ChatInputCommandInteraction,
+  SlashCommandBuilder,
+  RESTJSONErrorCodes,
+} from "discord.js";
 import { generateImage } from "../services/image.js";
 
+/* ─── Slash-command definition ───────────────────────────────────────────── */
 export const data = new SlashCommandBuilder()
   .setName("img")
   .setDescription("Generate an image with Stable Diffusion Forge")
   .addStringOption((o) =>
-    o.setName("prompt").setDescription("Image prompt").setRequired(true)
+    o.setName("prompt").setDescription("Image prompt").setRequired(true),
   );
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+/* ─── Command handler ────────────────────────────────────────────────────── */
+export async function execute(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  /* Acknowledge the interaction: opens a 15-min token window. */
   await interaction.deferReply();
+
   const prompt = interaction.options.getString("prompt", true);
+
+  /* 1 Ensure we have a channel that supports .send() */
+  const chan = interaction.channel;
+  if (!chan?.isSendable()) {
+    await interaction.editReply("❌ I can’t post images in this channel.");
+    return; // → Promise<void>
+  }
+  const sendToChannel = chan.send.bind(chan); // preserve `this`
+
+  /* 2 Generate the image */
+  let img: Buffer;
   try {
-    const img = await generateImage(prompt);
-    await interaction.editReply({ files: [{ attachment: img, name: "image.png" }] });
-  } catch (error: any) {
-    console.error("Error generating image:", error); // Log the actual error
-    await interaction.editReply({ content: `❌ Failed to generate image: ${error.message}` });
+    img = await generateImage(prompt);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown error while generating.";
+    await interaction.editReply(`❌ ${message}`);
+    return;
+  }
+
+  /* 3 Deliver the result */
+  try {
+    await interaction.editReply({
+      files: [{ attachment: img, name: "image.png" }],
+    });
+  } catch (err: any) {
+    /* 50027 → interaction token expired: fall back to a normal message */
+    if (err?.code === RESTJSONErrorCodes.InvalidWebhookToken) {
+      await sendToChannel({
+        content: `**Image for "${prompt}"**`,
+        files: [{ attachment: img, name: "image.png" }],
+      });
+    } else {
+      throw err; // surface unexpected problems
+    }
   }
 }

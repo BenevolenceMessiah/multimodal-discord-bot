@@ -2,6 +2,7 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { BotConfig } from './types.js';
 import { randomUUID } from 'crypto';
+import { logger } from './utils/logger.js';
 
 /** Replace ${ENV_KEY} or ${ENV_KEY:-default} placeholders inside YAML text */
 function interpolate(str: string): string {
@@ -25,9 +26,25 @@ for (const [k, v] of Object.entries(process.env)) {
   }
 }
 
-// Handle multiline SYSTEM_MESSAGE from .env
+// Handle SYSTEM_MESSAGE from .env (file or escaped string)
 if (process.env.SYSTEM_MESSAGE) {
-  cfg.systemMessage = process.env.SYSTEM_MESSAGE.replace(/\\n/g, '\n');
+  if (process.env.SYSTEM_MESSAGE.startsWith('file:')) {
+    // Load prompt from file
+    const filePath = process.env.SYSTEM_MESSAGE.substring(5).trim();
+    try {
+      cfg.systemMessage = fs.readFileSync(filePath, 'utf-8') 
+        .replace(/\r\n/g, '\n')  // Normalize line endings
+        .trim();
+    } catch (err) {
+      logger.error(`❌ Failed to load system prompt file: ${filePath}`, err);
+      throw new Error(`System prompt file not found: ${filePath}`);
+    }
+  } else {
+    // Handle escaped newlines in inline string
+    cfg.systemMessage = process.env.SYSTEM_MESSAGE
+      .replace(/\\n/g, '\n')       // Convert escaped newlines
+      .replace(/\r\n/g, '\n');     // Normalize Windows line endings
+  }
 }
 
 // Validate required configuration fields

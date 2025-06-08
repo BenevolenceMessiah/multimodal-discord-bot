@@ -8,10 +8,11 @@ if (config.redis && config.redis.enabled) {
   redis = new Redis(config.redis.url || 'redis://localhost:6379');
 }
 
-export async function pushMessage(channel: string, msg: string) {
+export async function pushMessage(channel: string, author: string, msg: string) {
   if (!redis) return;
+  const prefixedMsg = `${author}: ${msg}`;  // Add username prefix
   const key = `ctx:${channel}`;
-  await redis.rpush(key, msg);
+  await redis.rpush(key, prefixedMsg);
   await redis.ltrim(key, -config.maxLines, -1);
   if (config.redis?.ttl! >= 0) {
     await redis.expire(key, config.redis.ttl);
