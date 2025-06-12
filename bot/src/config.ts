@@ -1,103 +1,106 @@
-import fs from 'fs';
-import yaml from 'js-yaml';
-import { BotConfig } from './types.js';
-import { randomUUID } from 'crypto';
-import { logger } from './utils/logger.js';
+/******************************************************************
+ *  bot/config.ts  –  centralised configuration loader & validator
+ *  - Hydrates config.yaml with ${ENV} placeholders
+ *  - Applies flat .env overrides (camelCase or SNAKE_CASE)
+ *  - Adds two Booleans:  hideThoughtProcess  &  agenticToolcall
+ ******************************************************************/
+import fs from "fs";
+import yaml from "js-yaml";
+import { BotConfig } from "./types.js";
+import { logger } from "./utils/logger.js";
 
-/** Replace ${ENV_KEY} or ${ENV_KEY:-default} placeholders inside YAML text */
+/* ─────────────────────── Types ─────────────────────── */
+interface EnhancedBotConfig extends BotConfig {
+  hideThoughtProcess: boolean;
+  agenticToolcall: boolean;
+}
+
+/* ───────────────── Interpolation helper ────────────── */
 function interpolate(str: string): string {
+  // supports ${ENV} and ${ENV:-default}
   return str.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_, key, _2, def) =>
-    process.env[key] ?? def ?? ''
+    process.env[key] ?? def ?? "",
   );
 }
 
-// Load and hydrate config.yaml with environment variables
-const raw = fs.readFileSync('config.yaml', 'utf8');
+/* ───────────────── Load + hydrate YAML ─────────────── */
+const raw = fs.readFileSync("config.yaml", "utf8");
 const hydrated = interpolate(raw);
-const cfg = yaml.load(hydrated) as BotConfig;
+const cfg = yaml.load(hydrated) as EnhancedBotConfig;
 
-// Apply flat environment overrides
+/* ─────────────── Flat .env overrides ───────────────── */
 for (const [k, v] of Object.entries(process.env)) {
   const lc = k.toLowerCase();
+
+  /* hideThoughtProcess flag */
+  if (lc === "hidethoughtprocess" || lc === "hide_thought_process") {
+    cfg.hideThoughtProcess = v?.toLowerCase() === "true";
+    continue;
+  }
+
+  /* agenticToolcall flag  (AGENTIC_TOOLCALL / agentictoolcall) */
+  if (lc === "agentictoolcall" || lc === "agentic_toolcall") {
+    cfg.agenticToolcall = v?.toLowerCase() !== "false"; // default true
+    continue;
+  }
+
+  /* generic top-level override */
   if (lc in cfg) (cfg as any)[lc] = v;
-  if (lc.startsWith('n8n_')) {
+  else if (lc.startsWith("n8n_")) {
     const key = lc.slice(4);
     if (key in cfg) (cfg as any)[key] = v;
   }
 }
 
-// Handle SYSTEM_MESSAGE from .env (file or escaped string)
+/* ────────────── SYSTEM_MESSAGE override ────────────── */
 if (process.env.SYSTEM_MESSAGE) {
-  if (process.env.SYSTEM_MESSAGE.startsWith('file:')) {
-    // Load prompt from file
-    const filePath = process.env.SYSTEM_MESSAGE.substring(5).trim();
+  if (process.env.SYSTEM_MESSAGE.startsWith("file:")) {
+    const filePath = process.env.SYSTEM_MESSAGE.slice(5).trim();
     try {
-      cfg.systemMessage = fs.readFileSync(filePath, 'utf-8') 
-        .replace(/\r\n/g, '\n')  // Normalize line endings
-        .trim();
+      cfg.systemMessage = fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n").trim();
     } catch (err) {
-      logger.error(`❌ Failed to load system prompt file: ${filePath}`, err);
+      logger.error(`❌ Failed to load system prompt: ${filePath}`, err);
       throw new Error(`System prompt file not found: ${filePath}`);
     }
   } else {
-    // Handle escaped newlines in inline string
-    cfg.systemMessage = process.env.SYSTEM_MESSAGE
-      .replace(/\\n/g, '\n')       // Convert escaped newlines
-      .replace(/\r\n/g, '\n');     // Normalize Windows line endings
+    cfg.systemMessage = process.env.SYSTEM_MESSAGE.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
   }
 }
 
-// Validate required configuration fields
-if (cfg.textgenProvider === 'ollama' && !cfg.endpoints.ollama) {
-  throw new Error("OLLAMA_URL must be defined in config.yaml or .env when using Ollama");
-}
+/* ─────────────── Default missing Booleans ──────────── */
+if (cfg.hideThoughtProcess === undefined) cfg.hideThoughtProcess = false;
+if (cfg.agenticToolcall === undefined)   cfg.agenticToolcall   = true;
 
-if (cfg.textgenProvider === 'openrouter' && !cfg.endpoints.openrouter) {
-  throw new Error("OPENROUTER_URL must be defined in config.yaml or .env when using OpenRouter");
-}
+/* ─────────────────── Validations ───────────────────── */
+if (cfg.textgenProvider === "ollama" && !cfg.endpoints.ollama)
+  throw new Error("OLLAMA_URL must be set when using Ollama");
 
-if (cfg.imagegenProvider === 'stablediffusion' && !cfg.endpoints.stablediffusion) {
-  throw new Error("SD_URL must be defined in config.yaml or .env when using Stable Diffusion");
-}
+if (cfg.textgenProvider === "openrouter" && !cfg.endpoints.openrouter)
+  throw new Error("OPENROUTER_URL must be set when using OpenRouter");
 
-if (cfg.voicegenProvider === 'alltalk' && !cfg.endpoints.alltalk) {
-  throw new Error("ALLTALK_URL must be defined in config.yaml or .env when using AllTalk");
-}
+if (cfg.imagegenProvider === "stablediffusion" && !cfg.endpoints.stablediffusion)
+  throw new Error("SD_URL must be set when using Stable Diffusion");
 
-if (cfg.voicegenProvider === 'elevenlabs' && !cfg.elevenlabsKey) {
-  throw new Error("ELEVENLABS_KEY must be defined in config.yaml or .env when using ElevenLabs");
-}
+if (cfg.voicegenProvider === "alltalk" && !cfg.endpoints.alltalk)
+  throw new Error("ALLTALK_URL must be set when using AllTalk");
 
-if (cfg.search?.provider === 'tavily' && !cfg.search?.tavilyKey) {
-  throw new Error("TAVILY_KEY must be defined in config.yaml or .env when using Tavily");
-}
+if (cfg.voicegenProvider === "elevenlabs" && !cfg.elevenlabsKey)
+  throw new Error("ELEVENLABS_KEY must be set when using ElevenLabs");
 
-// Ensure Redis URL is defined when Redis is enabled
-if (cfg.redis?.enabled && !cfg.redis.url) {
-  throw new Error("REDIS_URL must be defined in config.yaml or .env when Redis is enabled");
-}
+if (cfg.search?.provider === "tavily" && !cfg.search?.tavilyKey)
+  throw new Error("TAVILY_KEY must be set when using Tavily");
 
-// Ensure PostgreSQL is properly configured
-if (cfg.postgres?.enabled) {
-  if (!cfg.postgres.url) {
-    throw new Error("POSTGRES_URL must be defined in config.yaml or .env when PostgreSQL is enabled");
-  }
-
-  // More flexible PostgreSQL URL validation
-  if (!/^postgres(ql)?:\/\/.+\/.*$/.test(cfg.postgres.url)) {
-    throw new Error("POSTGRES_URL must be a valid PostgreSQL connection string");
-  }
-}
-
-// Ensure Redis TTL is valid when Redis is enabled
 if (cfg.redis?.enabled) {
-  if (typeof cfg.redis.ttl !== 'number' || cfg.redis.ttl < -1) {
-    throw new Error("REDIS_TTL must be >= -1 (-1 = no expiration)");
-  }
-  if (!Number.isInteger(cfg.redis.ttl)) {
-    throw new Error("REDIS_TTL must be an integer value");
-  }
+  if (!cfg.redis.url) throw new Error("REDIS_URL must be set when Redis is enabled");
+  if (typeof cfg.redis.ttl !== "number" || cfg.redis.ttl < -1 || !Number.isInteger(cfg.redis.ttl))
+    throw new Error("REDIS_TTL must be an integer ≥ -1");
 }
 
-// Final export
-export const config: BotConfig = cfg;
+if (cfg.postgres?.enabled) {
+  if (!cfg.postgres.url) throw new Error("POSTGRES_URL must be set when PostgreSQL is enabled");
+  if (!/^postgres(ql)?:\/\/.+\/.*$/.test(cfg.postgres.url))
+    throw new Error("POSTGRES_URL must be a valid PostgreSQL connection string");
+}
+
+/* ──────────────────── Export ───────────────────────── */
+export const config: EnhancedBotConfig = cfg;

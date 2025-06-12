@@ -38,7 +38,6 @@ export async function generateText(prompt: string): Promise<string> {
   if (config.textgenProvider === "ollama") {
     return generateOllama(prompt);
   }
-  // Assuming "openrouter" is the only other text generation provider for now
   return generateOpenRouter(prompt);
 }
 
@@ -52,7 +51,7 @@ async function generateOllama(prompt: string): Promise<string> {
   const maxTokens = parseInt(config.maxTokens as any, 10);
   const contextLength = parseInt(config.contextLength as any, 10);
   
-  const systemMessage = await loadSystemMessage(); // Use resolved prompt
+  const systemMessage = await loadSystemMessage();
   
   let keepAliveVal: number | string;
   if (typeof config.keepAlive === 'string' && /^\d+$/.test(config.keepAlive)) {
@@ -70,7 +69,7 @@ async function generateOllama(prompt: string): Promise<string> {
     logger.warn(`Unexpected keepAlive format: '${config.keepAlive}', defaulting to "5m" for Ollama.`);
   }
 
-  const streamVal = Boolean(config.stream); 
+  const streamVal = Boolean(config.stream);
   
   // Prepend system message to prompt
   const augmentedPrompt = `
@@ -128,7 +127,7 @@ interface OpenRouterResponse {
 async function generateOpenRouter(prompt: string): Promise<string> {
   const temperature = parseFloat(config.temperature as any);
   const maxTokens = parseInt(config.maxTokens as any, 10);
-  const systemMessage = await loadSystemMessage(); // Use resolved prompt
+  const systemMessage = await loadSystemMessage();
 
   const body = {
     model: config.modelOpenrouter,

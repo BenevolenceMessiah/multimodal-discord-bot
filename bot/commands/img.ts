@@ -2,6 +2,7 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
   RESTJSONErrorCodes,
+  AttachmentBuilder,
 } from "discord.js";
 import { generateImage } from "../services/image.js";
 
@@ -26,12 +27,12 @@ export async function execute(
   const chan = interaction.channel;
   if (!chan?.isSendable()) {
     await interaction.editReply("❌ I can’t post images in this channel.");
-    return; // → Promise<void>
+    return;
   }
-  const sendToChannel = chan.send.bind(chan); // preserve `this`
+  const sendToChannel = chan.send.bind(chan);
 
   /* 2 Generate the image */
-  let img: Buffer;
+  let img: AttachmentBuilder;
   try {
     img = await generateImage(prompt);
   } catch (err) {
@@ -44,17 +45,17 @@ export async function execute(
   /* 3 Deliver the result */
   try {
     await interaction.editReply({
-      files: [{ attachment: img, name: "image.png" }],
+      files: [img],
     });
   } catch (err: any) {
     /* 50027 → interaction token expired: fall back to a normal message */
     if (err?.code === RESTJSONErrorCodes.InvalidWebhookToken) {
       await sendToChannel({
         content: `**Image for "${prompt}"**`,
-        files: [{ attachment: img, name: "image.png" }],
+        files: [img],
       });
     } else {
-      throw err; // surface unexpected problems
+      throw err;
     }
   }
 }

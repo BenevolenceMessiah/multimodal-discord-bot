@@ -69,3 +69,6 @@ postgres:
 search:
   provider: ${SEARCH_PROVIDER:-tavily}
   tavilyKey: ${TAVILY_KEY}
+
+# Thought process display
+hideThoughtProcess: ${HIDE_THOUGHT_PROCESS:-false}

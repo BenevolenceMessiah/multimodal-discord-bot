@@ -1,25 +1,83 @@
+/* ─────────────────────────── messageUtils.ts ───────────────────────────
+ * Utility helpers:
+ *   – withTyping  : keeps the typing indicator alive while an async task runs
+ *   – splitMessage: chunks long strings to stay under Discord’s 2 000-char limit
+ * --------------------------------------------------------------------- */
+
+import {
+  TextBasedChannel,
+  DMChannel,
+  NewsChannel,
+  TextChannel,
+  ThreadChannel,
+} from "discord.js";
+import { logger } from "./logger.js";
+
+/* ───────────────────────── helper: type-guard ───────────────────────── */
 /**
- * Splits long messages into Discord-safe chunks
- * @param content Message content to split
- * @param maxLength Max characters per chunk (default: 1800)
- * @returns Array of message chunks
+ * True if the channel instance exposes a usable `sendTyping()` method.
+ *
+ * The return type narrows to `TextBasedChannel & { sendTyping(): Promise<void> }`,
+ * which satisfies TypeScript and avoids union members lacking the method
+ * (e.g. `PartialGroupDMChannel`).
  */
-export function splitMessage(content: string, maxLength = 1800): string[] {
+function hasSendTyping(
+  channel: TextBasedChannel | null
+): channel is TextBasedChannel & { sendTyping(): Promise<void> } {
+  return (
+    !!channel &&
+    typeof (channel as any).sendTyping === "function" && (
+      channel instanceof TextChannel ||
+      channel instanceof DMChannel ||
+      channel instanceof NewsChannel ||
+      channel instanceof ThreadChannel
+    )
+  );
+}
+
+/* ─────────────────────────── splitMessage ──────────────────────────── */
+export function splitMessage(content: string, maxLen = 1_800): string[] {
   const chunks: string[] = [];
-  
+
   while (content.length > 0) {
-    if (content.length <= maxLength) {
+    if (content.length <= maxLen) {
       chunks.push(content);
       break;
     }
-    
-    // Find last space within maxLength
-    let splitIndex = content.lastIndexOf(' ', maxLength);
-    if (splitIndex === -1) splitIndex = maxLength; // No space found
-    
-    chunks.push(content.substring(0, splitIndex));
-    content = content.substring(splitIndex).trimStart();
+
+    let idx = content.lastIndexOf(" ", maxLen);
+    if (idx === -1) idx = maxLen;
+
+    chunks.push(content.slice(0, idx));
+    content = content.slice(idx).trimStart();
   }
-  
+
   return chunks;
+}
+
+/* ─────────────────────────── withTyping ────────────────────────────── */
+export async function withTyping(
+  channel: TextBasedChannel | null,
+  fn: () => Promise<void>
+): Promise<void> {
+  if (!hasSendTyping(channel)) {
+    await fn();
+    return;
+  }
+
+  const sendTyping = () =>
+    channel
+      .sendTyping()
+      .catch((e: Error) =>
+        logger.error(`Failed to send typing indicator: ${e.message}`)
+      );
+
+  sendTyping();                       // initial indicator
+  const timer = setInterval(sendTyping, 8_000);
+
+  try {
+    await fn();
+  } finally {
+    clearInterval(timer);
+  }
 }
