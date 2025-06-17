@@ -1,106 +1,119 @@
 /******************************************************************
- *  bot/config.ts  –  centralised configuration loader & validator
- *  - Hydrates config.yaml with ${ENV} placeholders
- *  - Applies flat .env overrides (camelCase or SNAKE_CASE)
- *  - Adds two Booleans:  hideThoughtProcess  &  agenticToolcall
+ * bot/config.ts – typed, side-effect-free config loader
+ * ---------------------------------------------------------------
+ * • Hydrates config.yaml with ${ENV} placeholders
+ * • Applies .env overrides (camelCase or SNAKE_CASE)
+ * • Adds two booleans: hideThoughtProcess & agenticToolcall
+ * • Logs meaningful errors via utils/logger.ts
+ * • Freezes and exports an immutable, fully-typed object
  ******************************************************************/
-import fs from "fs";
-import yaml from "js-yaml";
-import { BotConfig } from "./types.js";
-import { logger } from "./utils/logger.js";
 
-/* ─────────────────────── Types ─────────────────────── */
-interface EnhancedBotConfig extends BotConfig {
-  hideThoughtProcess: boolean;
-  agenticToolcall: boolean;
-}
+import fs   from 'node:fs';
+import path from 'node:path';
+import yaml from 'js-yaml';                   // YAML parser
+import { BotConfig } from './types.js';
+import { logger }   from './utils/logger.js'; // central winston/pino wrapper
 
-/* ───────────────── Interpolation helper ────────────── */
-function interpolate(str: string): string {
-  // supports ${ENV} and ${ENV:-default}
-  return str.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_, key, _2, def) =>
-    process.env[key] ?? def ?? "",
+const CONFIG_FILE = path.resolve(process.cwd(), 'config.yaml');
+
+/* ───────────────────── helpers ────────────────────── */
+const toBool = (v: unknown, fallback = false): boolean =>
+  typeof v === 'string'
+    ? ['true', '1', 'yes', 'on', 'y'].includes(v.toLowerCase())
+    : typeof v === 'boolean'
+    ? v
+    : fallback;
+
+const read = (p: string) =>
+  fs.readFileSync(p, { encoding: 'utf8' }).replace(/\r\n/g, '\n');
+
+const interpolate = (s: string) =>
+  s.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_, k: string, _2: unknown, d: string) =>
+    process.env[k] ?? d ?? '',
   );
-}
 
-/* ───────────────── Load + hydrate YAML ─────────────── */
-const raw = fs.readFileSync("config.yaml", "utf8");
-const hydrated = interpolate(raw);
-const cfg = yaml.load(hydrated) as EnhancedBotConfig;
-
-/* ─────────────── Flat .env overrides ───────────────── */
-for (const [k, v] of Object.entries(process.env)) {
-  const lc = k.toLowerCase();
-
-  /* hideThoughtProcess flag */
-  if (lc === "hidethoughtprocess" || lc === "hide_thought_process") {
-    cfg.hideThoughtProcess = v?.toLowerCase() === "true";
-    continue;
-  }
-
-  /* agenticToolcall flag  (AGENTIC_TOOLCALL / agentictoolcall) */
-  if (lc === "agentictoolcall" || lc === "agentic_toolcall") {
-    cfg.agenticToolcall = v?.toLowerCase() !== "false"; // default true
-    continue;
-  }
-
-  /* generic top-level override */
-  if (lc in cfg) (cfg as any)[lc] = v;
-  else if (lc.startsWith("n8n_")) {
-    const key = lc.slice(4);
-    if (key in cfg) (cfg as any)[key] = v;
+function invariant(cond: unknown, msg: string): asserts cond {
+  if (!cond) {
+    logger.error(msg);                       // keep operator-visible trace
+    throw new Error(`Config error » ${msg}`);
   }
 }
 
-/* ────────────── SYSTEM_MESSAGE override ────────────── */
+/* ───────────── YAML → object ───────────── */
+const rawYaml = interpolate(read(CONFIG_FILE));
+const cfg = yaml.load(rawYaml) as BotConfig & {
+  hideThoughtProcess?: boolean;
+  agenticToolcall?:   boolean;
+};
+
+/* ───────────── .env overrides ───────────── */
+for (const [envKey, val] of Object.entries(process.env)) {
+  const k = envKey.toLowerCase();
+  switch (k) {
+    case 'hidethoughtprocess':
+    case 'hide_thought_process':
+      cfg.hideThoughtProcess = toBool(val);
+      break;
+    case 'agentictoolcall':
+    case 'agentic_toolcall':
+      cfg.agenticToolcall = !/^(false|0|no|off)$/i.test(String(val ?? '')); // default true
+      break;
+    default:
+      if (k in cfg) (cfg as any)[k] = val; // flat override
+  }
+}
+
+/* ───── systemMessage override (with logging) ───── */
 if (process.env.SYSTEM_MESSAGE) {
-  if (process.env.SYSTEM_MESSAGE.startsWith("file:")) {
-    const filePath = process.env.SYSTEM_MESSAGE.slice(5).trim();
+  const sm = process.env.SYSTEM_MESSAGE!;
+  if (sm.startsWith('file:')) {
+    const filePath = sm.slice(5).trim();
     try {
-      cfg.systemMessage = fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n").trim();
+      cfg.systemMessage = read(filePath);
     } catch (err) {
       logger.error(`❌ Failed to load system prompt: ${filePath}`, err);
-      throw new Error(`System prompt file not found: ${filePath}`);
+      throw err;
     }
   } else {
-    cfg.systemMessage = process.env.SYSTEM_MESSAGE.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+    cfg.systemMessage = sm.replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
   }
 }
 
-/* ─────────────── Default missing Booleans ──────────── */
-if (cfg.hideThoughtProcess === undefined) cfg.hideThoughtProcess = false;
-if (cfg.agenticToolcall === undefined)   cfg.agenticToolcall   = true;
+/* ───── defaults for booleans ───── */
+cfg.hideThoughtProcess ??= false;
+cfg.agenticToolcall   ??= true;
 
-/* ─────────────────── Validations ───────────────────── */
-if (cfg.textgenProvider === "ollama" && !cfg.endpoints.ollama)
-  throw new Error("OLLAMA_URL must be set when using Ollama");
+/* ───── runtime validations (log + throw) ───── */
+const { endpoints = {}, search, redis, postgres } = cfg;
 
-if (cfg.textgenProvider === "openrouter" && !cfg.endpoints.openrouter)
-  throw new Error("OPENROUTER_URL must be set when using OpenRouter");
+invariant(!(cfg.textgenProvider === 'ollama'         && !endpoints.ollama),        'OLLAMA_URL must be set when using Ollama');
+invariant(!(cfg.textgenProvider === 'openrouter'     && !endpoints.openrouter),    'OPENROUTER_URL must be set when using OpenRouter');
+invariant(!(cfg.imagegenProvider === 'stablediffusion' && !endpoints.stablediffusion), 'SD_URL must be set when using Stable Diffusion');
+invariant(!(cfg.voicegenProvider === 'alltalk'       && !endpoints.alltalk),       'ALLTALK_URL must be set when using AllTalk');
+invariant(!(cfg.voicegenProvider === 'elevenlabs'    && !cfg.elevenlabsKey),       'ELEVENLABS_KEY must be set when using ElevenLabs');
+if (search?.provider === 'tavily') invariant(!!search.tavilyKey, 'TAVILY_KEY must be set when using Tavily');
 
-if (cfg.imagegenProvider === "stablediffusion" && !cfg.endpoints.stablediffusion)
-  throw new Error("SD_URL must be set when using Stable Diffusion");
-
-if (cfg.voicegenProvider === "alltalk" && !cfg.endpoints.alltalk)
-  throw new Error("ALLTALK_URL must be set when using AllTalk");
-
-if (cfg.voicegenProvider === "elevenlabs" && !cfg.elevenlabsKey)
-  throw new Error("ELEVENLABS_KEY must be set when using ElevenLabs");
-
-if (cfg.search?.provider === "tavily" && !cfg.search?.tavilyKey)
-  throw new Error("TAVILY_KEY must be set when using Tavily");
-
-if (cfg.redis?.enabled) {
-  if (!cfg.redis.url) throw new Error("REDIS_URL must be set when Redis is enabled");
-  if (typeof cfg.redis.ttl !== "number" || cfg.redis.ttl < -1 || !Number.isInteger(cfg.redis.ttl))
-    throw new Error("REDIS_TTL must be an integer ≥ -1");
+if (redis?.enabled) {
+  invariant(!!redis.url, 'REDIS_URL must be set when Redis is enabled');
+  invariant(Number.isInteger(redis.ttl) && redis.ttl >= -1, 'REDIS_TTL must be an integer ≥ -1');
 }
 
-if (cfg.postgres?.enabled) {
-  if (!cfg.postgres.url) throw new Error("POSTGRES_URL must be set when PostgreSQL is enabled");
-  if (!/^postgres(ql)?:\/\/.+\/.*$/.test(cfg.postgres.url))
-    throw new Error("POSTGRES_URL must be a valid PostgreSQL connection string");
+if (postgres?.enabled) {
+  invariant(!!postgres.url, 'POSTGRES_URL must be set when PostgreSQL is enabled');
+  invariant(/^postgres(?:ql)?:\/\/.+\/.+$/.test(postgres.url), 'POSTGRES_URL must be a valid connection string');
 }
 
-/* ──────────────────── Export ───────────────────────── */
-export const config: EnhancedBotConfig = cfg;
+/* ─────────── produce final, typed object ─────────── */
+interface FinalConfig extends BotConfig {
+  hideThoughtProcess: boolean;
+  agenticToolcall:   boolean;
+}
+
+const finalCfg: FinalConfig = {
+  ...cfg,
+  hideThoughtProcess: cfg.hideThoughtProcess,
+  agenticToolcall:    cfg.agenticToolcall,
+};
+
+/** Immutable, application-wide config */
+export const config = Object.freeze(finalCfg) as Readonly<FinalConfig>; // Object.freeze ensures runtime immutability :contentReference[oaicite:5]{index=5}

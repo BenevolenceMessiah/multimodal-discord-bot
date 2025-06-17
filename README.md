@@ -124,6 +124,12 @@ Utilizes Stable Diffusion WebUI Forge API for Image Generation.
 #### Example Tool Useage of /img
 
 Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight."
+
+## Behavioral Guidelines
+
+- If creating lists or are explaining concepts that would require it, you may use Markdown format.
+- Adapt responses based on request type. If retrieving information, be precise. If creating/modifying, confirm execution succinctly.
+- Always phrase responses as if the execution is seamless and inevitable.
 ```
 
 5. Once Configuration is complete, build and start the containers:

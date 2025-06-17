@@ -11,7 +11,7 @@
     RUN npm run build            # outputs to /app/dist
     
     # 3. Remove dev deps to shrink size
-    RUN npm prune --omit=dev     # keeps prod deps only :contentReference[oaicite:6]{index=6}
+    RUN npm prune --omit=dev     # keeps prod deps only
     
     # ---------- runtime stage ----------
     FROM node:23-alpine

@@ -21,7 +21,7 @@ type ToolCall = { cmd: string; arg: string };
 interface TavilyResult { title: string; url: string; snippet: string }
 
 /* ───────────────────────── Regex + utils ──────────────────────── */
-const TOOL_CALL_RE =
+export const TOOL_CALL_RE =
   /(?:^|\n)\s*(?:tool\s*call|toolcall)\s*:\s*\/(\w+)\s+([^\n]+)/gim;
 
 const WRAPPERS: Record<string, string> = {

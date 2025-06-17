@@ -1,0 +1,43 @@
+/* ───────────────────────── splitByToolCalls.ts ─────────────────────────
+ * Utility: break an LLM reply into      textBefore | calls[] | textAfter
+ * ----------------------------------------------------------------------
+ *  • If the reply contains NO tool-call lines, the entire text is returned
+ *    in `textBefore`; `calls` and `textAfter` are then empty strings/arrays.
+ *  • When tool calls are present, they are kept in `calls[]` (trimmed)
+ *    and removed from both surrounding text blocks.
+ *  • Works in concert with TOOL_CALL_RE from toolCallRouter.ts
+ */
+
+import { TOOL_CALL_RE } from './toolCallRouter.js';
+
+export function splitByToolCalls(full: string): {
+  textBefore: string;
+  calls: string[];
+  textAfter: string;
+} {
+  const parts: { text: string; call?: string }[] = [];
+  let lastIdx = 0;
+
+  // iterate over every tool-call match and slice the text around it
+  for (const m of full.matchAll(TOOL_CALL_RE)) {
+    const [line] = m;
+    parts.push({ text: full.slice(lastIdx, m.index) });
+    parts.push({ text: '', call: line.trim() });
+    lastIdx = (m.index ?? 0) + line.length;
+  }
+  // push trailing chunk
+  parts.push({ text: full.slice(lastIdx) });
+
+  const calls = parts.filter((p) => p.call).map((p) => p.call!);
+
+  /* ── No tool calls? return everything in textBefore only ─────────── */
+  if (calls.length === 0) {
+    return { textBefore: full.trim(), calls: [], textAfter: '' };
+  }
+
+  /* ── At least one tool call present ──────────────────────────────── */
+  const textBefore = (parts[0]?.text || '').trim();
+  const textAfter  = (parts[parts.length - 1]?.text || '').trim();
+
+  return { textBefore, calls, textAfter };
+}
