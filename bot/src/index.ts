@@ -203,21 +203,25 @@ client.on('messageCreate', async (msg) => {
       const before = config.hideThoughtProcess ? stripThought(textBefore) : textBefore;
       const after  = config.hideThoughtProcess ? stripThought(textAfter)  : textAfter;
 
-      /* 6️⃣ intro text + tool-call lines together */
-      const introLines: string[] = [];
-
-      // lead-in narration (if any)
-      if (before) introLines.push(before);
-
-      // prettified tool-call lines
-      for (const raw of calls) introLines.push(formatToolCallLine(raw));
-
-      if (introLines.length) {
-        const joined  = introLines.join('\n');
-        const chunks  = splitMessage(joined, 1_800);   // stay under 2 000 chars
+      /* 6️⃣ lead-in narration (if any) */
+      if (before) {
+        const chunks = splitMessage(before, 1_800);
         await msg.reply(chunks[0]);
         for (const extra of chunks.slice(1)) await msg.channel.send(extra);
-        saveBotMsg(msg.channelId, botUser.username, joined);
+        saveBotMsg(msg.channelId, botUser.username, before);
+      }
+
+      /* 6️⃣-b short-circuit when NO tool calls */
+      if (calls.length === 0) {
+        if (after) saveBotMsg(msg.channelId, botUser.username, after); // keep history tidy
+        return;
+      }
+
+      /* 6️⃣-c visible, prettified tool-call lines */
+      for (const raw of calls) {
+        const pretty = formatToolCallLine(raw);
+        await msg.channel.send(pretty);
+        saveBotMsg(msg.channelId, botUser.username, pretty);
       }
 
       /* 7️⃣ execute each call, confirm afterward */

@@ -359,36 +359,36 @@ pie
 
 ## 🚀 Roadmap / Future Improvements
 
-^[Enhancing the multimodal-discord-bot with powerful new capabilities:]({"attribution":{"attributableIndex":"0-1"}})
+[Enhancing the multimodal-discord-bot with powerful new capabilities:]
 
 ### 🔹 Smart Summarizer
 
-- ^[**Feature**: Summarizes entire channel discussions on-demand (e.g. /summarize), or daily digests via scheduled tasks.]({"attribution":{"attributableIndex":"0-2"}})
-- ^[**Leverages**: LLMs (e.g. GPT‑4) for concise, context-aware summaries.]({"attribution":{"attributableIndex":"0-3"}})
+- [**Feature**: Summarizes entire channel discussions on-demand (e.g. /summarize), or daily digests via scheduled tasks.]
+- [**Leverages**: LLMs (e.g. GPT‑4) for concise, context-aware summaries.]
 - *Inspiration/Precedents*:
-  - ^["Summary Bot" services that compress long chat histories]({"attribution":{"attributableIndex":"0-4"}})  [oai_citation:0‡github.com](https://github.com/rauljordan/daily-discord-summarizer?utm_source=chatgpt.com) [oai_citation:1‡top.gg](https://top.gg/tag/summary?utm_source=chatgpt.com).
-  - ^[GitHub project [Daily Discord Summarizer](https://github.com/rauljordan/daily-discord-summarizer) for scheduled digests]({"attribution":{"attributableIndex":"547-0"}})  [oai_citation:2‡github.com](https://github.com/rauljordan/daily-discord-summarizer?utm_source=chatgpt.com).
-  - ^[TLDRBot-style /tldr implementations for quick summary commands]({"attribution":{"attributableIndex":"693-0"}})  [oai_citation:3‡notta.ai](https://www.notta.ai/en/blog/summary-bot?utm_source=chatgpt.com).
+  - ["Summary Bot" services that compress long chat histories](https://github.com/rauljordan/daily-discord-summarizer)
+  - [GitHub project [Daily Discord Summarizer](https://github.com/rauljordan/daily-discord-summarizer) for scheduled digests]
+  - [TLDRBot-style /tldr implementations for quick summary commands](https://www.notta.ai/en/blog/summary-bot).
 
 ---
 
 ### 🔹 Event Creation & Scheduling
 
-- ^[**Feature**: Slash commands such as /create-event, RSVP, timezone management, reminders, and attendance tracking.]({"attribution":{"attributableIndex":"783-0"}})
+- ^[**Feature**: Slash commands such as /create-event, RSVP, timezone management, reminders, and attendance tracking.]
 - *Inspiration/Precedents*:
-  - ^[[ScheduleBot](https://github.com/Duinrahaic/ScheduleBot) for community event handling]({"attribution":{"attributableIndex":"783-1"}})  [oai_citation:4‡github.com](https://github.com/Duinrahaic/ScheduleBot?utm_source=chatgpt.com).
-  - ^[[Group Up](https://github.com/Burn-E99/GroupUp) using slash commands and threads for events]({"attribution":{"attributableIndex":"1082-0"}})  [oai_citation:5‡github.com](https://github.com/Burn-E99/GroupUp?utm_source=chatgpt.com).
-  - ^[[DiscoCal](https://github.com/GyroJoe/DiscoCal) for easy calendar-based event creation]({"attribution":{"attributableIndex":"1199-0"}})  [oai_citation:6‡github.com](https://github.com/GyroJoe/DiscoCal?utm_source=chatgpt.com).
-
+  - [ScheduleBot](https://github.com/Duinrahaic/ScheduleBot) for community event handling.
+  - [Group Up](https://github.com/Burn-E99/GroupUp) using slash commands and threads for events
+  - [DiscoCal](https://github.com/GyroJoe/DiscoCal) for easy calendar-based event creation.
+  
 ---
 
 ### 🔹 Gamification & Engagement Tools
 
-- ^[**Feature**: XP/leveling, experience points, leaderboard and role rewards, mini‑games, counting or trivia games, and interactive quests.]({"attribution":{"attributableIndex":"1312-0"}})
+- [**Feature**: XP/leveling, experience points, leaderboard and role rewards, mini‑games, counting or trivia games, and interactive quests.]
 - *Inspiration/Precedents*:
-  - ^[MEE6/Carl‑bot: XP, roles, leveling, reaction roles]({"attribution":{"attributableIndex":"1312-1"}})  [oai_citation:7‡rewardtheworld.net](https://rewardtheworld.net/gamification-on-discord-engaging-community-members/?utm_source=chatgpt.com) [oai_citation:8‡rebeccareesey.medium.com](https://rebeccareesey.medium.com/4-discord-bots-every-server-owner-should-use-to-generate-more-engagement-dc6150c87f8?utm_source=chatgpt.com).
-  - ^[Counting‑style bots for simple community games]({"attribution":{"attributableIndex":"1615-0"}})  [oai_citation:9‡reddit.com](https://www.reddit.com/r/Discord_Bots/comments/1i9rk7w/what_are_the_simplest_bots_for_promoting/?utm_source=chatgpt.com).
-  - ^[Interactive game bots with quests, stats, etc.]({"attribution":{"attributableIndex":"1702-0"}})  [oai_citation:10‡botpenguin.com](https://botpenguin.com/blogs/leveling-up-customer-experiences-discord-game-bot?utm_source=chatgpt.com).
+  - [MEE6/Carl‑bot: XP, roles, leveling, reaction roles](https://rewardtheworld.net/gamification-on-discord-engaging-community-members/)
+  - [Counting‑style bots for simple community games](https://www.reddit.com/r/Discord_Bots/comments/1i9rk7w/what_are_the_simplest_bots_for_promoting/).
+  - [Interactive game bots with quests, stats, etc.](https://botpenguin.com/blogs/leveling-up-customer-experiences-discord-game-bot).
 
 ---
 
