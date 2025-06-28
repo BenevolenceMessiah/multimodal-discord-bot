@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.27"
+  },
+  "dependencies": {
+    "fluent-ffmpeg": "^2.1.3"
+  }
+}
