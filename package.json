@@ -20,6 +20,7 @@
   "devDependencies": {
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/js-yaml": "^4.0.9",
+    "@types/pg": "^8.15.4",
     "nodemon": "^3.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.0"
