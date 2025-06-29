@@ -8,28 +8,33 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import fetch from "node-fetch";
-import { generateImage } from "../../services/image.js";
-import { config } from "../config.js";
 
+import { generateImage }   from "../../services/image.js";
+import { generateMusic }   from "../../services/ace.js";        // NEW
+import { chunkAudio }      from "../../src/utils/audio.js";         // NEW
+import { config }          from "../config.js";
+
+/* ------------------------------------------------------------------ */
 export async function withTyping(
   channel: TextBasedChannel | null,
-  fn: () => Promise<void>
-): Promise<void> { /* … */ }
+  fn: () => Promise<void>,
+): Promise<void> { /* … unchanged … */ }
 
-/* ───────────────────────── Helper types ───────────────────────── */
+/* ──────────────── Helper types ───────────────── */
 type ToolCall = { cmd: string; arg: string };
 interface TavilyResult { title: string; url: string; snippet: string }
 
-/* ───────────────────────── Regex + utils ──────────────────────── */
+/* ─────────────── Regex + utils ───────────────── */
 export const TOOL_CALL_RE =
   /(?:^|\n)\s*(?:tool\s*call|toolcall)\s*:\s*\/(\w+)\s+([^\n]+)/gim;
 
 const WRAPPERS: Record<string, string> = {
-  '"': '"', "'": "'", "(": ")", "[": "]", "{": "}",
+  '"': '"', "'": "'", "(": ")", "[": "]", "{": "}", "`": "`",
 };
 const stripWrapper = (raw: string) => {
   const t = raw.trim();
-  return WRAPPERS[t[0]] && t.endsWith(WRAPPERS[t[0]]) ? t.slice(1, -1).trim() : t;
+  const w = WRAPPERS[t[0]];
+  return w && t.endsWith(w) ? t.slice(1, -1).trim() : t;
 };
 const isSendableChannel = (c: TextBasedChannel) =>
   [
@@ -41,12 +46,11 @@ const isSendableChannel = (c: TextBasedChannel) =>
     ChannelType.DM,
   ].includes(c.type);
 
-/* ─────────────────────── MAIN DISPATCHER ──────────────────────── */
+/* ───────────── MAIN DISPATCHER ───────────── */
 export async function tryHandleToolCall(
   rawText: string,
   channel: TextBasedChannel,
 ): Promise<boolean> {
-  /* feature-flag guard – EARLY EXIT */
   if (!config.agenticToolcall) return false;
 
   const calls: ToolCall[] = [];
@@ -65,9 +69,7 @@ export async function tryHandleToolCall(
             if (isSendableChannel(channel))
               await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send({
                 content: `🖼️ **Generated:** ${arg}`,
-                files: [
-                  { attachment: attachment.attachment, name: "image.png" },
-                ],
+                files: [{ attachment: attachment.attachment, name: "image.png" }],
               });
             break;
           }
@@ -81,11 +83,8 @@ export async function tryHandleToolCall(
                 );
               return;
             }
-
             const key = process.env.TAVILY_KEY;
-            const url = `https://api.tavily.com/search?api_key=${key}&query=${encodeURIComponent(
-              arg,
-            )}&max_results=5`;
+            const url = `https://api.tavily.com/search?api_key=${key}&query=${encodeURIComponent(arg)}&max_results=5`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`Tavily error: ${res.status}`);
 
@@ -93,12 +92,44 @@ export async function tryHandleToolCall(
             const embed = new EmbedBuilder()
               .setTitle(`🔎 Tavily results for “${arg}”`)
               .setFooter({ text: "Powered by Tavily" });
-
             for (const { title, url, snippet } of results) {
               embed.addFields({ name: title, value: `[Link](${url})\n${snippet}` });
             }
             if (isSendableChannel(channel))
               await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send({ embeds: [embed] });
+            break;
+          }
+
+          /* ---------- /music ---------- */
+          case "music": {
+            // Split first blank line into prompt & lyrics
+            const [prompt, ...rest] = arg.split(/\n\s*\n/);
+            const lyrics = rest.join("\n").trim();
+
+            try {
+              const audio = await generateMusic({
+                prompt: prompt.trim(),
+                lyrics,
+                format: (process.env.ACE_STEP_FORMAT ?? "mp3") as "mp3" | "wav" | "flac",
+              });
+              const parts = await chunkAudio(audio);
+
+              // Discord: ≤10 attachments/message
+              for (let idx = 0; idx < parts.length; idx += 10) {
+                const slice = parts.slice(idx, idx + 10);
+                if (isSendableChannel(channel))
+                  await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send({
+                    content: `🎶 Track segment ${idx / 10 + 1}/${Math.ceil(parts.length / 10)}`,
+                    files: slice.map(p => ({ attachment: p })),
+                  });
+              }
+            } catch (err) {
+              console.error("ACE-Step error:", err);
+              if (isSendableChannel(channel))
+                await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send(
+                  "🚨 Unable to generate music – is ACE-Step running?",
+                );
+            }
             break;
           }
 

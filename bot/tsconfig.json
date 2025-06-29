@@ -4,6 +4,7 @@
     "target": "ES2022",
     "module": "ESNext",  // ← Updated from "CommonJS" to "ESNext"
     "moduleResolution": "node",
+    /* let TS auto-scan node_modules/@types */
 
     /* Project layout */
     "rootDir": ".",                     // ← include commands/ & services/

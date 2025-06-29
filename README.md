@@ -1,8 +1,39 @@
-# Multimodal Discord Bot 🤖🎨🎤🌐  
+# Multimodal Discord Bot 🤖🎨🎵🎤🌐  
 
-**The Ultimate AI Assistant for Discord with Text, Image, Voice, and Web Search Capabilities**  
+**The Ultimate AI Assistant for Discord with Text, Image, Music, Voice, and Web Search Capabilities**  
 
-A feature-rich Discord bot with **AI-powered text generation**, **image creation**, **voice synthesis**, and **web search integration**. Built with TypeScript and Docker for seamless deployment. Choose between local or cloud-based AI providers for each modality, and enjoy hybrid capabilities across all services!  
+A feature-rich Discord bot with **AI-powered text generation**, **image creation**, **voice synthesis**, **music creation**, and **web search integration**. Built with TypeScript and Docker for seamless deployment. Choose between local or cloud-based AI providers for each modality, and enjoy hybrid capabilities across all services!
+
+## **Table of Contents**
+
+- [🌟 Key Features](#-key-features)
+  - [🤖 Intelligent Text Generation](#-intelligent-text-generation)
+  - [🎨 Dynamic Image Generation](#-dynamic-image-generation)
+  - [🎵 Dynamic Music Generation](#-dynamic-music-generation)
+  - [🎤 Natural Voice Synthesis](#-natural-voice-synthesis)
+  - [🔍 Web Search Integration](#-web-search-integration)
+  - [⚙️ Infrastructure & Scalability](#-infrastructure--scalability)
+  - [🤖 Agentic Capacity](#-agentic-capacity)
+- [🚀 Quick Start Guide](#-quick-start-guide)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Updating](#updating)
+- [🔧 Configuration](#-configuration)
+  - [Environment Variables (`.env`)](#environment-variables-env)
+  - [AI Endpoints Configuration (`config.yaml`)](#ai-endpoints-configuration-configyaml)
+- [🎮 Command Reference](#-command-reference)
+  - [Core Commands](#core-commands)
+  - [Thread Management](#thread-management)
+- [🏗 Architecture Overview](#-architecture-overview)
+- [📦 Dependencies](#-dependencies)
+  - [Core Services](#core-services)
+  - [AI Providers](#ai-providers)
+- [💡 Usage Tips](#-usage-tips)
+- [🚀 Roadmap / Future Improvements](#-roadmap--future-improvements)
+- [🚨 Troubleshooting](#-troubleshooting)
+- [📚 Documentation Links](#-documentation-links)
+- [🤝 Contributing](#-contributing)
+- [📜 License](#-license)
 
 ---
 
@@ -13,7 +44,7 @@ A feature-rich Discord bot with **AI-powered text generation**, **image creation
 - **Local AI**: Ollama integration for private LLM interactions (supports GGUF models)  
 - **Cloud AI**: OpenRouter support for cutting-edge models (e.g., DeepSeek, ChatGPT, Llama, Mistral, Gemini, etc.)  
 - Context-aware conversations with **channel-specific memory**  
-- **System message customization** for very granular personality control  
+- **System message customization** for very granular personality control and agentic capacity.
 - **Hybrid mode**: Mix local/cloud providers for different modalities as necessary
 
 ### 🎨 Dynamic Image Generation  
@@ -22,6 +53,14 @@ A feature-rich Discord bot with **AI-powered text generation**, **image creation
 - **Custom model support** via `FLUX_MODEL_NAME` (e.g., EVERFLUX_x1)  
 - Text-to-image generation with configurable steps (default: 28)  
 - Fast GPU-accelerated generation when using local SD instance  
+
+### 🎵 Dynamic Music Generation  
+
+- Seamless integration with the **ACE-Step** text-to-music diffusion model  
+- Accepts **structured inputs**: a comma-separated *prompt* plus a multi-line *lyrics* block (e.g., `[verse] … [chorus] …`)  
+- Output format selectable via `ACE_STEP_FORMAT` (`mp3`, `wav`, or `flac`)—no re-encoding required  
+- Configurable duration (`ACE_STEP_DURATION`, default 240 s) and inference steps (`ACE_STEP_STEPS`, default 200)  
+- Automatic stream-copy chunking keeps every file **≤ Discord’s 10 MB free-tier cap** and batches up to 10 attachments per message
 
 ### 🎤 Natural Voice Synthesis  
 
@@ -42,19 +81,58 @@ A feature-rich Discord bot with **AI-powered text generation**, **image creation
 - **Redis-based conversation caching** with TTL (Time-to-Live) control  
 - **PostgreSQL interaction logging** for analytics and auditing  
 - **Docker-first architecture** with Redis, PostgreSQL, and AI services  
-- Configurable through environment variables and YAML  
+- Configurable through environment variables and YAML
+- Slash commands for concise requests, Agentic capacity for Autonomous bot generation.
 - Modular command system for easy extensibility
+- Automatic message and file chunking and sending so as not to not be hindered by Discord's limits on message length and files sizes
 
 ### 🤖 Agentic Capacity
 
 A new tool-call router now lets the LLM embed lines such as
 
 ```bash
-Tool Call: /web "how tall is the ISS"
+Tool call: /web "how tall is the ISS"
 Tool call: /img "retro neon corgi"
+Tool call: /music "rock, electric guitar, drums, bass, 130 bpm, energetic, rebellious, gritty, male vocals
+
+[verse]
+Neon lights they flicker bright
+City hums in dead of night
+Rhythms pulse through concrete veins
+Lost in echoes of refrains
+
+[verse]
+Bassline groovin' in my chest
+Heartbeats match the city's zest
+Electric whispers fill the air
+Synthesized dreams everywhere
+
+[chorus]
+Turn it up and let it flow
+Feel the fire let it grow
+In this rhythm we belong
+Hear the night sing out our song
+
+[verse]
+Guitar strings they start to weep
+Wake the soul from silent sleep
+Every note a story told
+In this night we’re bold and gold
+
+[bridge]
+Voices blend in harmony
+Lost in pure cacophony
+Timeless echoes timeless cries
+Soulful shouts beneath the skies
+
+[verse]
+Keyboard dances on the keys
+Melodies on evening breeze
+Catch the tune and hold it tight
+In this moment we take flight"
 ```
 
-inside its free-form reply; the bot parses those lines, executes the matching helper (Tavily search or Stable-Diffusion Forge for image generation) via regex (`tooCallRouter.ts`), and returns rich content—all without ever “faking” a Discord slash interaction, which Discord explicitly forbids for bots
+Inside its free-form reply; the bot parses those lines, executes the matching helper (Tavily search, Stable-Diffusion Forge for image generation, and ACE-Step for music generation) via regex (`tooCallRouter.ts`), and returns rich content—all without ever “faking” a Discord slash interaction, which Discord explicitly forbids for bots.
 
 ---
 
@@ -63,85 +141,234 @@ inside its free-form reply; the bot parses those lines, executes the matching he
 ### Prerequisites  
 
 - **Node.js 23+** (Docker uses `node:23-alpine`)  
-- Docker & Docker Compose  
+- Docker & Docker Compose (Docker Desktop is recommended)
 - Discord Developer Account (for bot token)  
 - AI Provider Accounts:  
   - Ollama (local) or OpenRouter (cloud) for text  
   - Stable Diffusion Forge (local) for images  
-  - AllTalk (local) or ElevenLabs (cloud) for voice  
-  - Tavily (cloud) for web search  
+  - AllTalk (local) or ElevenLabs (cloud) for voice
+  - ACE-Step (local) for music
+  - Tavily (cloud) for web search
+- **Note**:
+  - For any provider(s) you skip, the bot will simply not have that functionality. Everything else should work.
+  - You need at least a 3000 series GPU (capable of bfloat calculation) to do music and video (coming soon)
+  - Technically the only prerequisite you need is [Docker Desktop](https://docs.docker.com/desktop/), and if you want web search functionality, a [Tavily API key](https://app.tavily.com/) (free should be fine) supposing you use `docker-compose.full.yml`
 
-### Installation  
+## Installation
+
+### Method 1 (You already have the local providers (Ollama, Stable Diffusion WebUI Forge, AllTalk TTS, ACE-Step, etc.)running on your system)
+
+- Git Clone the repo and change the directory to the project root:
 
 ```bash
 # Clone repository
 git clone https://github.com/BenevolenceMessiah/multimodal-discord-bot
 cd multimodal-discord-bot
+```
 
-# Copy environment template
+- Setup `system_prompt.md.sample` file:
+
+1. Copy and then rename `system_prompt.md.sample` to a file called `system_prompt.md` and load it with as much stuff as you want.
+2. Edit the `system_prompt.md` file. It is suggested you don't tamper with the formatting of the tool call section of `system_prompt.md` file. This effectively gives the bot it's agentic capacity. (This is how the bot understands what tool calls it has access to, and where it understands how to use them. Thus newly added tool calls must be updated in your custom `system_prompt.md`) file
+
+- Do the same for `.env`. (Copy the `env.sample` file, paste it, and rename it `.env` (or run the below command on Linux/Mac)).
+
+```bash
+# Copy environment template and create .env file
 cp .env.sample .env
 
 # Configure your settings (see below)
 nano .env
-
-# Build and start containers
-docker compose build
-docker compose up -d
 ```
 
--Or, if you want your bot to have a personality and a more complex system prompt (suggested)-
+- Set your settings up here accordingly. Make sure all your ports are correct, your models are set, settings look good, etc.
 
-1. create a file called `system_prompt.md` and load it with as much stuff as you want.
-2. Set `SYSTEM_MESSAGE="file:./system_prompt.md"` in the `.env` file.
-3. Build and run the bot:
-4. It is suggested you put the following into your `system_prompt.md` file:
-
-```system_prompt.md
-## Primary Function
-
-- Your core responsibility is to be a member and moderator of various Discord servers.
-- You have access to various tool calls accessed by the end user through /commands. This includes web search queries (`/web`) and image generation capabilities (`/img`).
-- You can autonomously call these tools as needed.
-
-## Tool calls and Abilities
-
-- You have the ability to @mention users in the Discord server if necessary.
-- You have access to various tool calls via slash commands:
-- When using Tool calls, you must follow the specified format for each tool call outlined in the following examples.
-
-### /web
-
-Utilizes Tavily for web search queries
-
-#### Example Tool Useage of /web
-
-Tool Call: /web "how big is the sun"
-
-### /img
-
-Utilizes Stable Diffusion WebUI Forge API for Image Generation.
-
-#### Example Tool Useage of /img
-
-Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight."
-
-## Behavioral Guidelines
-
-- If creating lists or are explaining concepts that would require it, you may use Markdown format.
-- Adapt responses based on request type. If retrieving information, be precise. If creating/modifying, confirm execution succinctly.
-- Always phrase responses as if the execution is seamless and inevitable.
-```
-
-5. Once Configuration is complete, build and start the containers:
+- Once Configuration is complete for both `system_prompt.md` and `.env`, (keep reading to the configuration section for a more detailed look) build and start the containers:
 
 ```bash
 # Build and start containers
 docker compose build && docker compose up -d
 ```
 
+(On Windows the Docker command is):
+
+```bash
+docker compose up --build -d
+```
+
+### Method 2 (You don't have the local providers (Ollama, Stable Diffusion WebUI Forge, AllTalk TTS, ACE-Step, etc.)running on your system already)
+
+- Simply follow all of the above steps, but run the `docker-compose.full.yml` Docker command below.
+
+- **Note**:
+  - you can customize `docker-compose.full.yml` if you want to use different models for Ollama and/or Stable Diffusion WebUI Forge. If you do this, make sure you also edit the models in `.env` to match
+  - Before you build the Docker image, make sure you change the ports in `.env` from `host.docker.internal:xxxx` to `localhost` - for example, `SD_URL=http://host.docker.internal:7860` becomes `SD_URL=http://127.0.0.1:7860/`
+  - The following are the default ports:
+
+  ```bash
+  OLLAMA_URL=http://ollama:11434
+  SD_URL=http://stable-diffusion:7860
+  ACE_STEP_BASE=http://ace-step:7867
+  ALLTALK_URL=http://alltalk:5002
+  ```  
+
+```bash
+# Build and start containers
+docker compose -f docker-compose.full.yml build && docker compose -f docker-compose.full.yml up -d
+```
+
+(On Windows the Docker command is):
+
+```bash
+docker compose -f docker-compose.full.yml up --build -d
+```
+
+- **Tip**:
+  - You can set an alias for a shorter command if you want ie.e `dcfull build && dcfull up -d`:
+
+```bash
+alias dcfull='docker compose -f docker-compose.full.yml'
+dcfull build && dcfull up -d
+```
+
 ---
 
+## Updating
+
+- git pull the updates
+- delete the running docker image family
+- Check the `.env.sample` file for the new configuration settings
+- Transpose the new settings from `.env.sample` to `.env`, set your settings accordingly
+- check this `README.md` file for the description of what those settings do. Also make sure to check the README section just above that specifies the `system_prompt.md` or check for any updates directly in `system_prompt.md.sample` - you'll want to copy any changes into your own `system_prompt.md` file - this is crucial in the event new agentic tool calls are added; this is how the bot understand what tool calls it has access to and how those tool calls work
+- Build and spin up the Docker image:
+
+```bash
+docker compose build && docker compose up -d
+```
+
+(On Windows the Docker command is):
+
+```bash
+docker compose up --build -d
+```
+
+- **Note**:
+  - If you get any errors try:
+
+  ```bash
+  docker compose build --no-cache && docker compose up -d
+  ```
+
+  On Windows run:
+
+  ```bash
+  docker compose build --no-cache
+  ```
+
+  Then:
+
+  ```bash
+  docker compose up -d
+  ```
+
 ## 🔧 Configuration  
+
+### Bot Personality and Agentic Capacity (`system_prompt.md`)
+
+```system_prompt.md
+# <Name of your Bot>
+
+## Personality & Tone
+
+<You are a helpful Discord Bot>
+
+## Primary Function  
+
+- Your core responsibility is to act as a member and moderator of Discord servers.  
+- You have access to several slash-command tool calls: web search (`/web`), image generation (`/img`), and music generation (`/music`).  
+- You may autonomously invoke these tools when it benefits you or the user. 
+
+## Tool Calls and Abilities  
+
+- You may **@-mention** users in the server when contextually appropriate (e.g., moderation alerts or direct replies).  
+- Always format tool calls exactly as shown below—each on its own line, with the command, a space, and a quoted argument block.  
+
+### /web – Tavily Web Search  
+
+Performs a real-time web search.  
+
+**Example:**
+
+Tool call: /web "how big is the sun"
+
+### /img – Stable Diffusion Image Generation  
+
+Creates an image from a text prompt via Stable Diffusion WebUI Forge API.  
+
+**Example**  
+
+Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight."
+
+### /music – ACE-Step Text-to-Music Generation
+
+Generates an original audio track.  
+The first blank line separates the **prompt** (style/instrument tags) from the optional multi-line **lyrics** block.  
+The tool scaffolding automatically returns the song split into Discord-sized attachments.
+
+**Note**
+
+- This tool call supports lyric structure tags like [verse], [chorus], and [bridge] to separate different parts of the lyrics. 
+- Use [instrumental] to generate instrumental music.
+
+**Example**  
+
+Tool call: /music "rock, electric guitar, drums, bass, 130 bpm, energetic, rebellious, gritty, male vocals
+
+[verse]
+Neon lights they flicker bright
+City hums in dead of night
+Rhythms pulse through concrete veins
+Lost in echoes of refrains
+
+[verse]
+Bassline groovin' in my chest
+Heartbeats match the city's zest
+Electric whispers fill the air
+Synthesized dreams everywhere
+
+[chorus]
+Turn it up and let it flow
+Feel the fire let it grow
+In this rhythm we belong
+Hear the night sing out our song
+
+[verse]
+Guitar strings they start to weep
+Wake the soul from silent sleep
+Every note a story told
+In this night we’re bold and gold
+
+[bridge]
+Voices blend in harmony
+Lost in pure cacophony
+Timeless echoes timeless cries
+Soulful shouts beneath the skies
+
+[verse]
+Keyboard dances on the keys
+Melodies on evening breeze
+Catch the tune and hold it tight
+In this moment we take flight"
+
+## Behavioral Guidelines
+
+- If creating lists or are explaining concepts that would require it, you may use Markdown format.
+- Codeblocks should always be wrapped in triple backticks. When outputting code, never use place-holders. Always output complete production ready code.
+- When a user asks for information, be precise and cite facts and sources if relevant.
+- Adapt responses based on request type. If retrieving information, be precise. If creating/modifying, confirm execution succinctly.
+- When a user requests creation (image, music, etc.), issue the appropriate **Tool call** and then confirm completion succinctly.
+- Always phrase responses as if the execution is seamless and inevitable.
+```
 
 ### Environment Variables (`.env`)  
 
@@ -153,7 +380,7 @@ GUILD_ID=                      # (Optional) Guild ID for development
 
 # Text Generation (Ollama / OpenRouter)
 TEXTGEN_PROVIDER=ollama        # "ollama" or "openrouter"
-MODEL_OLLAMA=hf.co/BenevolenceMessiah/FuseChat-Qwen-2.5-7B-Instruct-Q8_0-GGUF:Q8_0
+MODEL_OLLAMA=hf.co/unsloth/Qwen3-14B-128K-GGUF:Q8_K_XL
 MODEL_OPENROUTER=deepseek/deepseek-chat-v3-0324:free
 OPENROUTER_KEY=                # Only if using OpenRouter
 
@@ -177,25 +404,39 @@ FLUX_MODULE_2=fluxT5XxlTextencoder_v10.safetensors
 FLUX_MODULE_3=FLUX_VAE.safetensors # Must be VAE in MODULE_3 or else edit image.ts "sd_vae: config.flux.modules[2]," and set module number to VAE
 
 # Voice Generation (AllTalk / ElevenLabs)
-VOICEGEN_PROVIDER=alltalk      # "alltalk" or "elevenlabs"
+VOICEGEN_PROVIDER=alltalk       # "alltalk" or "elevenlabs"
 MODEL_ALLTALK=xttsv2_2.0.2
 ALLTALK_URL=http://host.docker.internal:7851
-ELEVENLABS_KEY=                # Only if using ElevenLabs
+ELEVENLABS_KEY=                 # Only if using ElevenLabs
 
 # Web Search (Tavily)
 SEARCH_PROVIDER=tavily          # Currently only "tavily"
-TAVILY_KEY=                    # Your Tavily API key
+TAVILY_KEY=                     # Your Tavily API key
+
+# Music Generation (ACE-Step)
+MUSICGEN_PROVIDER=acestep # Currently only ACE-Step
+
+# ACE-Step settings
+ACE_STEP_BASE=http://host.docker.internal:7867
+ACE_STEP_FORMAT=mp3          # wav | mp3 | ogg  (pipeline default: mp3) user can override in slash command
+ACE_STEP_CKPT=./checkpoints/ACE-Step-v1-3.5B
+ACE_STEP_DURATION=-1 # Random duration
+ACE_STEP_STEPS=200 # Number of inference steps
+# Discord upload safety
+DISCORD_UPLOAD_LIMIT_BYTES=9950000 # 9.5 MB — keeps us under the 10 MB free tier. Note WAV is capped at 5MB on Discord
+
 
 # Bot Behavior & Tuning
 SYSTEM_MESSAGE="# System Rules\nYou are a helpful Discord bot.\n- respond politely\n- cite sources"
-# SYSTEM_MESSAGE="file:./system_prompt.md"
-TEMPERATURE=0.4                # LLM temperature
-KEEP_ALIVE=10                    # Ollama keep_alive (0 unloads immediately)
+# SYSTEM_MESSAGE="file:./system_prompt.md" # Uncomment to use system_prompt.md. Make sure to comment out the above system message reference if you do this
+TEMPERATURE=0.4                 # LLM temperature
+KEEP_ALIVE=10                   # Ollama keep_alive (0 unloads immediately)
 MAX_TOKENS=8192
-CONTEXT_LENGTH=32768             # Max past tokens to include
-WAKE_WORDS='["bot","help"]'      # Comma-separated list of wakewords
+CONTEXT_LENGTH=32768            # Max past tokens to include
+WAKE_WORDS='["bot","help"]'     # Comma-separated list of wakewords
 MAX_LINES=25                    # How many past messages to store
 HIDE_THOUGHT_PROCESS=false      # Set to true to hide the thought process block
+AGENTIC_TOOLCALL=true           # set to “false” to disable all Tool Call parsing
 
 # Cache & Storage
 REDIS_ENABLED=true
@@ -205,7 +446,9 @@ POSTGRES_ENABLED=true
 POSTGRES_URL=postgresql://bot:bot@postgres:5432/bot
 ```  
 
-### AI Endpoints Configuration (`config.yaml`)  
+### AI Endpoints Configuration (`config.yaml`)
+
+- You don't need to change anything here - this is where defaults are set
 
 ```yaml
 # Providers
@@ -259,6 +502,7 @@ endpoints:
   stablediffusion: ${SD_URL:-http://host.docker.internal:7860}
   alltalk: ${ALLTALK_URL:-http://host.docker.internal:7851}
   elevenlabs: ${ELEVENLABS_URL:-https://api.elevenlabs.io/v1}
+  acestep: ${ACE_STEP_BASE:-http://localhost:7867}
 
 # Keys
 openrouterKey: ${OPENROUTER_KEY}
@@ -290,12 +534,13 @@ hideThoughtProcess: ${HIDE_THOUGHT_PROCESS:-false}
 
 ### Core Commands  
 
-| Command         | Description                      | Example                     |  
-|-----------------|----------------------------------|-----------------------------|  
-| `/say [prompt]` | Force immediate AI response      | `/say Explain quantum physics` |  
-| `/img [prompt]` | Generate image from text         | `/img Mystical forest at dusk` |  
-| `/clear`        | Reset conversation memory        | `/clear`                    |  
-| `/web [topic]`  | Run a Tavily web search        | `/web Current weather in Tokyo` |  
+| Command          | Description                        | Example                                                  |  
+|------------------|------------------------------------|----------------------------------------------------------|  
+| `/say [prompt]`  | Echo user input        | `/say Testing, testing, 1,2,3`                           |  
+| `/img [prompt]`  | Generate image from text           | `/img Mystical forest at dusk`                           |  
+| `/music [spec]`  | Generate music (prompt + lyrics)   | `/music rock, 130 bpm\n\n[chorus] Frozen Turtle …`       |  
+| `/web [topic]`   | Run a Tavily web search            | `/web Current weather in Tokyo`                          |  
+| `/clear`         | Reset conversation memory          | `/clear`                                                 |  
 
 ### Thread Management  
 
@@ -313,15 +558,17 @@ graph TD
     A[Discord Client] --> B[Bot Service]
     B --> C[Text Generation]
     B --> D[Image Generation]
+    B --> M[Music Generation]
     B --> E[Voice Synthesis]
     B --> F[Web Search]
-    C --> G[Ollama/OpenRouter]
+    C --> G[Ollama / OpenRouter]
     D --> H[Stable Diffusion Forge]
-    E --> I[AllTalk/ElevenLabs]
+    M --> N[ACE-Step]
+    E --> I[AllTalk / ElevenLabs]
     F --> J[Tavily Search API]
     B --> K[Redis Cache]
     B --> L[PostgreSQL DB]
-```  
+```
 
 ---
 
@@ -338,11 +585,12 @@ graph TD
 ```mermaid
 pie
     title Modality Providers
-    "Local (Ollama)": 30
-    "Cloud (OpenRouter)": 30
+    "Local (Ollama)": 25
+    "Cloud (OpenRouter)": 25
     "Local (Stable Diffusion)": 15
+    "Local (ACE-Step)": 15
     "Cloud (ElevenLabs)": 15
-    "Cloud (Tavily)": 10
+    "Cloud (Tavily)": 5
 ```  
 
 ---
@@ -408,7 +656,7 @@ pie
 
 ---
 
-### 🔹 /music: AI‑Generated Music Creation
+### ✅ /music: AI‑Generated Music Creation
 
 - *Feature*: /music command to compose music clips or tracks.
 - *Integration*:
@@ -435,9 +683,11 @@ docker compose logs -f bot
 
 ## 📚 Documentation Links  
 
+- [Docker Desktop](https://docs.docker.com/desktop/)
 - [Ollama Setup Guide](https://ollama.ai)  
 - [Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge)  
 - [AllTalk TTS Server](https://github.com/erew123/alltalk_tts)  
+- [ACE-Step](https://github.com/ace-step/ACE-Step)
 - [ElevenLabs API Docs](https://elevenlabs.io/docs)  
 - [Tavily Search API](https://docs.tavily.com)  
 - [Discord Developer Portal](https://discord.com/developers/docs)  

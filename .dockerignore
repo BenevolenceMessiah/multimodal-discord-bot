@@ -1,1 +1,27 @@
-<contents above>
+# ── language & tool caches ───────────────────────────
+node_modules
+npm-debug.log*       # npm/yarn/pnpm error logs
+*.tgz                # npm pack artifacts
+*.tsbuildinfo        # TS incremental cache
+
+# ── VCS & editors ────────────────────────────────────
+.git
+.gitignore
+*.swp
+*.swo
+.idea
+.vscode
+
+# ── local configs & secrets (still mounted via volumes)
+.env*
+config.yaml          # you mount the version you want at runtime
+
+# ── tests, docs, generated coverage ──────────────────
+coverage
+docs
+*.spec.ts
+*.test.ts
+
+# ── OS cruft ─────────────────────────────────────────
+.DS_Store
+Thumbs.db

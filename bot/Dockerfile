@@ -1,25 +1,40 @@
-# ---------- build stage ----------
-    FROM node:23-alpine AS build
-    WORKDIR /app
-    
-    # 1. Copy manifests and install *all* deps (dev included)
-    COPY package*.json ./
-    RUN npm install
-    
-    # 2. Compile TS → JS
-    COPY . .
-    RUN npm run build            # outputs to /app/dist
-    
-    # 3. Remove dev deps to shrink size
-    RUN npm prune --omit=dev     # keeps prod deps only
-    
-    # ---------- runtime stage ----------
-    FROM node:23-alpine
-    WORKDIR /app
-    
-    # Copy only pruned node_modules and compiled JS
-    COPY --from=build /app/node_modules ./node_modules
-    COPY --from=build /app/dist ./dist
-    ENV NODE_ENV=production
-    CMD ["node","/app/dist/src/index.js"]
-    
+############################################
+# ⏳ build stage – compile TypeScript
+############################################
+FROM node:23-alpine AS build
+WORKDIR /app
+
+# 1️⃣ copy root manifests (they declare fluent-ffmpeg)
+COPY package*.json ./
+
+# 2️⃣ install *all* deps so TypeScript sees @types/*
+ENV NODE_ENV=development
+RUN apk update && \
+    apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci
+
+# 3️⃣ copy bot source and compile
+COPY bot ./bot
+WORKDIR /app/bot
+RUN npm run build               # outputs to /app/bot/dist
+
+############################################
+# 🚀 runtime stage – slim, prod-only
+############################################
+FROM node:23-alpine
+WORKDIR /app/bot
+ENV NODE_ENV=production
+
+# 4️⃣ install runtime deps *only*
+COPY package*.json ../
+WORKDIR /app
+RUN npm ci --omit=dev
+WORKDIR /app/bot
+
+# 5️⃣ add FFmpeg binary for fluent-ffmpeg
+RUN apk add --no-cache ffmpeg
+
+# 6️⃣ copy compiled JS bundle
+COPY --from=build /app/bot/dist ./dist
+
+CMD ["node", "dist/src/index.js"]

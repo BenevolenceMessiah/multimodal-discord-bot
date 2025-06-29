@@ -1,0 +1,121 @@
+version: "3.9"
+
+x-gpu-env: &gpu-env
+  NVIDIA_VISIBLE_DEVICES: "all"
+  NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+
+networks: { multimodal: {} }
+
+volumes:
+  pgdata: {}
+  ollama-data: {}
+  sd-models: {}
+  sd-outputs: {}
+  ace-checkpoints: {}
+  voices: {}
+
+# ───────────────────────────────────────  BOT  ───────────────────────────────────────
+services:
+  bot:
+    build:
+      context: .                    # entire repo
+      dockerfile: bot/Dockerfile
+    env_file: .env
+    volumes:
+      - ./config.yaml:/app/bot/config.yaml:ro
+      - ./system_prompt.md:/app/bot/system_prompt.md:ro
+    depends_on: [ redis, postgres, ollama, stable-diffusion, ace-step, alltalk ]
+    networks: [ multimodal ]
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices: [ { capabilities: [gpu] } ]
+    environment: *gpu-env
+
+# ───────────────────────────  TEXT-GEN  (Ollama)  ───────────────────────────
+  ollama-init:
+    image: ollama/ollama:latest
+    entrypoint: >
+      /bin/bash -c "
+        ollama pull ${MODEL_OLLAMA:-hf.co/unsloth/Qwen3-14B-128K-GGUF:Q8_K_XL};
+        echo '✔ Ollama model cached.' "
+    volumes: [ ollama-data:/root/.ollama ]
+    networks: [ multimodal ]
+
+  ollama:
+    image: ollama/ollama:latest
+    depends_on: [ ollama-init ]
+    ports: [ "11434:11434" ]
+    volumes: [ ollama-data:/root/.ollama ]
+    networks: [ multimodal ]
+    restart: unless-stopped
+    environment: *gpu-env
+
+# ───────────────────────  IMAGE-GEN  (Stable-Diffusion Forge)  ───────────────────────
+  sd-models-init:
+    image: alpine:3.19
+    entrypoint: >
+      /bin/sh -c "
+        apk add --no-cache curl; set -e
+        mkdir -p /models/Stable-diffusion /models/text_encoder /models/VAE;
+        echo '⬇ Downloading EverFlux & Flux modules…';
+        curl -L -o /models/Stable-diffusion/EVERFLUX_x1.safetensors \
+          https://huggingface.co/Human23/EverFlux/resolve/main/EVERFLUX_x1.safetensors;
+        curl -L -o /models/text_encoder/fluxT5XxlTextencoder_v10.safetensors \
+          https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors;
+        curl -L -o /models/VAE/clipLFullFP32Zer0int_textImprovedFP32.safetensors \
+          https://huggingface.co/EClipX/EX-De-Distill/resolve/c0b7f2054b03e707e524143712c5296e59d93f33/clipLFullFP32Zer0int_textImprovedFP32.safetensors;
+        curl -L -o /models/VAE/flux_vae.safetensors \
+          https://huggingface.co/StableDiffusionVN/Flux/resolve/main/Vae/flux_vae.safetensors;
+        echo '✔ SD models ready.' "
+    volumes: [ sd-models:/models ]
+    networks: [ multimodal ]
+
+  stable-diffusion:
+    image: nykk3/stable-diffusion-webui-forge:latest
+    shm_size: "4gb"
+    depends_on: [ sd-models-init ]
+    ports:  [ "7860:7860" ]
+    volumes:
+      - sd-models:/app/stable-diffusion-webui/models
+      - sd-outputs:/app/stable-diffusion-webui/outputs
+    networks: [ multimodal ]
+    restart: unless-stopped
+    environment: *gpu-env
+
+# ───────────────────────  MUSIC-GEN  (ACE-Step)  ───────────────────────
+  ace-step:
+    image: valyriantech/ace-step:latest
+    ports: [ "7867:7867" ]
+    volumes: [ ace-checkpoints:/app/checkpoints ]
+    networks: [ multimodal ]
+    restart: unless-stopped
+    environment: *gpu-env
+
+# ───────────────────────  VOICE-GEN  (AllTalk TTS)  ───────────────────────
+  alltalk:
+    image: joshxt/alltalk_tts:latest
+    ports: [ "5002:5002" ]
+    volumes: [ voices:/app/voices ]
+    networks: [ multimodal ]
+    restart: unless-stopped
+    environment: *gpu-env
+
+# ───────────────────────────  CORE DATA  ───────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--save","","--appendonly","no"]
+    networks: [ multimodal ]
+    restart: unless-stopped
+    extra_hosts: [ "host.docker.internal:host-gateway" ]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bot
+      POSTGRES_PASSWORD: bot
+      POSTGRES_DB: bot
+    volumes: [ pgdata:/var/lib/postgresql/data ]
+    networks: [ multimodal ]
+    restart: unless-stopped

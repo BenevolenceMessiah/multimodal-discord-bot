@@ -4,57 +4,53 @@
 
 import 'dotenv/config';
 import {
-  Client,
-  GatewayIntentBits,
-  Partials,
-  Collection,
-  REST,
-  Routes,
-  ChatInputCommandInteraction,
-  TextBasedChannel,
+  Client, GatewayIntentBits, Partials, Collection, REST, Routes,
+  ChatInputCommandInteraction, TextBasedChannel,
 } from 'discord.js';
-import { logger } from './utils/logger.js';
-import { config } from './config.js';
+import { logger }  from './utils/logger.js';
+import { config }  from './config.js';
 
-/* Context / memory ---------------------------------------------------- */
+/* Context / memory -------------------------------------------------- */
 import { pushMessage as pushToMemory } from '../services/context.js';
 import { pushMessage, getContext }    from '../services/cache.js';
 
-/* Utilities ----------------------------------------------------------- */
+/* Utilities --------------------------------------------------------- */
 import { formatToolCallLine } from './utils/formatToolCall.js';
-import { withTyping, splitMessage } from './utils/messageUtils.js';
-import { tryHandleToolCall, TOOL_CALL_RE } from './utils/toolCallRouter.js';
+import { withTyping, splitMessage }  from './utils/messageUtils.js';
+import { tryHandleToolCall }        from './utils/toolCallRouter.js';
 import { stripThought }             from './utils/stripThought.js';
 import { splitByToolCalls }         from './utils/splitByToolCalls.js';
 
-/* Slash-command registrations ---------------------------------------- */
+/* Slash-command registrations -------------------------------------- */
 import { data as imgData,    execute as imgExec }    from '../commands/img.js';
 import { data as sayData,    execute as sayExec }    from '../commands/say.js';
 import { data as webData,    execute as webExec }    from '../commands/web.js';
+import { data as musicData,  execute as musicExec }  from '../commands/music.js';   // NEW
 import { data as threadData, execute as threadExec } from '../commands/thread.js';
 import { data as threadPrivData, execute as threadPrivExec } from '../commands/threadPrivate.js';
 import { data as clearData,  execute as clearExec }  from '../commands/clear.js';
 
-/* Services ----------------------------------------------------------- */
+/* Services --------------------------------------------------------- */
 import { logInteraction } from '../services/db.js';
 import { generateText }   from '../services/llm.js';
 
 type CmdHandler = (i: ChatInputCommandInteraction) => Promise<void>;
 
-/* ---------------- registered slash commands ------------------------- */
+/* ---------------- registered slash commands ----------------------- */
 const commands = [
-  imgData, sayData, webData, threadData, threadPrivData, clearData,
+  imgData, sayData, webData, musicData, threadData, threadPrivData, clearData,
 ];
 const handlers = new Collection<string, CmdHandler>([
   ['img',            imgExec],
   ['say',            sayExec],
   ['web',            webExec],
+  ['music',          musicExec],   // NEW
   ['thread',         threadExec],
   ['thread-private', threadPrivExec],
   ['clear',          clearExec],
 ]);
 
-/* ─── Discord client bootstrap ─────────────────────────────────────── */
+/* ─── Discord client bootstrap ───────────────────────────────────── */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,

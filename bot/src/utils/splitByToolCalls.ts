@@ -1,12 +1,9 @@
 /* ───────────────────────── splitByToolCalls.ts ─────────────────────────
  * Utility: break an LLM reply into      textBefore | calls[] | textAfter
- * ----------------------------------------------------------------------
- *  • If the reply contains NO tool-call lines, the entire text is returned
- *    in `textBefore`; `calls` and `textAfter` are then empty strings/arrays.
- *  • When tool calls are present, they are kept in `calls[]` (trimmed)
- *    and removed from both surrounding text blocks.
- *  • Works in concert with TOOL_CALL_RE from toolCallRouter.ts
- */
+ * Adds support for /music (nothing else changes — the regex lives in
+ * toolCallRouter.ts). Multiline args wrapped in quotes/back-ticks survive,
+ * because we only trim at *tool-call lines*, not inside wrappers.
+ * -------------------------------------------------------------------- */
 
 import { TOOL_CALL_RE } from './toolCallRouter.js';
 
@@ -28,7 +25,7 @@ export function splitByToolCalls(full: string): {
   // push trailing chunk
   parts.push({ text: full.slice(lastIdx) });
 
-  const calls = parts.filter((p) => p.call).map((p) => p.call!);
+  const calls = parts.filter(Boolean).map(p => p.call!).filter(Boolean);
 
   /* ── No tool calls? return everything in textBefore only ─────────── */
   if (calls.length === 0) {

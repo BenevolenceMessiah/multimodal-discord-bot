@@ -1,10 +1,12 @@
 services:
   bot:
-    build: ./bot
+    build:
+      context: .               # send entire repo so root manifests are available
+      dockerfile: bot/Dockerfile
     env_file: .env
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
-      - ./system_prompt.md:/app/system_prompt.md:ro
+      - ./config.yaml:/app/bot/config.yaml:ro
+      - ./system_prompt.md:/app/bot/system_prompt.md:ro
     depends_on:
       - redis
       - postgres
@@ -19,7 +21,7 @@ services:
       - multimodal
     restart: unless-stopped
     extra_hosts:
-      - "host.docker.internal:host-gateway" 
+      - "host.docker.internal:host-gateway"
 
   postgres:
     image: postgres:16-alpine
@@ -35,5 +37,6 @@ services:
 
 networks:
   multimodal: {}
+
 volumes:
   pgdata: {}

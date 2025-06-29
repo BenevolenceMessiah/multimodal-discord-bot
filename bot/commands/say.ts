@@ -2,7 +2,7 @@ import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
   .setName("say")
-  .setDescription("Echoes your input.")
+  .setDescription("Echoes your input")
   .addStringOption((o) => o.setName("prompt").setDescription("The text to echo").setRequired(true));
 
 export async function execute(interaction: ChatInputCommandInteraction) {

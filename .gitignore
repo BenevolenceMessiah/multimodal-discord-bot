@@ -1,10 +1,11 @@
 # .gitignore
 # Node.js
 node_modules/
+bot/node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
-package-lock.json
+# package-lock.json
 yarn.lock
 
 # TypeScript
@@ -52,3 +53,7 @@ system_prompt.md
 
 # Config files (if you want to exclude local config overrides)
 config.local.yaml
+
+# keep the bot folder in context
+!bot/**
+!bot/package-lock.json

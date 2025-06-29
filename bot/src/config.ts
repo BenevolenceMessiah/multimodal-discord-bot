@@ -3,20 +3,21 @@
  * ---------------------------------------------------------------
  * • Hydrates config.yaml with ${ENV} placeholders
  * • Applies .env overrides (camelCase or SNAKE_CASE)
- * • Adds two booleans: hideThoughtProcess & agenticToolcall
+ * • Adds booleans hideThoughtProcess & agenticToolcall
+ * • Adds musicgenProvider, discordUploadLimitBytes
  * • Logs meaningful errors via utils/logger.ts
  * • Freezes and exports an immutable, fully-typed object
  ******************************************************************/
 
 import fs   from 'node:fs';
 import path from 'node:path';
-import yaml from 'js-yaml';                   // YAML parser
+import yaml from 'js-yaml';
 import { BotConfig } from './types.js';
-import { logger }   from './utils/logger.js'; // central winston/pino wrapper
+import { logger }   from './utils/logger.js';
 
 const CONFIG_FILE = path.resolve(process.cwd(), 'config.yaml');
 
-/* ───────────────────── helpers ────────────────────── */
+/* ───────────── helper fns ───────────── */
 const toBool = (v: unknown, fallback = false): boolean =>
   typeof v === 'string'
     ? ['true', '1', 'yes', 'on', 'y'].includes(v.toLowerCase())
@@ -24,26 +25,33 @@ const toBool = (v: unknown, fallback = false): boolean =>
     ? v
     : fallback;
 
+const toInt = (v: unknown, dflt: number): number => {
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : dflt;
+};
+
 const read = (p: string) =>
-  fs.readFileSync(p, { encoding: 'utf8' }).replace(/\r\n/g, '\n');
+  fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
 const interpolate = (s: string) =>
-  s.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_, k: string, _2: unknown, d: string) =>
+  s.replace(/\$\{([^:}]+)(:-([^}]*))?}/g, (_: string, k: string, _2: unknown, d: string) =>
     process.env[k] ?? d ?? '',
   );
 
 function invariant(cond: unknown, msg: string): asserts cond {
   if (!cond) {
-    logger.error(msg);                       // keep operator-visible trace
+    logger.error(msg);
     throw new Error(`Config error » ${msg}`);
   }
 }
 
-/* ───────────── YAML → object ───────────── */
+/* ───────────── parse YAML ───────────── */
 const rawYaml = interpolate(read(CONFIG_FILE));
 const cfg = yaml.load(rawYaml) as BotConfig & {
-  hideThoughtProcess?: boolean;
-  agenticToolcall?:   boolean;
+  hideThoughtProcess?:        boolean;
+  agenticToolcall?:           boolean;
+  musicgenProvider?:          string;
+  discordUploadLimitBytes?:   number;
 };
 
 /* ───────────── .env overrides ───────────── */
@@ -56,21 +64,28 @@ for (const [envKey, val] of Object.entries(process.env)) {
       break;
     case 'agentictoolcall':
     case 'agentic_toolcall':
-      cfg.agenticToolcall = !/^(false|0|no|off)$/i.test(String(val ?? '')); // default true
+      cfg.agenticToolcall = !/^(false|0|no|off)$/i.test(String(val ?? ''));
+      break;
+    case 'musicgenprovider':
+    case 'musicgen_provider':
+      cfg.musicgenProvider = String(val).toLowerCase();
+      break;
+    case 'discorduploadlimitbytes':
+    case 'discord_upload_limit_bytes':
+      cfg.discordUploadLimitBytes = toInt(val, 9_500_000);
       break;
     default:
-      if (k in cfg) (cfg as any)[k] = val; // flat override
+      if (k in cfg) (cfg as any)[k] = val;
   }
 }
 
-/* ───── systemMessage override (with logging) ───── */
+/* ───── systemMessage override ───── */
 if (process.env.SYSTEM_MESSAGE) {
   const sm = process.env.SYSTEM_MESSAGE!;
   if (sm.startsWith('file:')) {
     const filePath = sm.slice(5).trim();
-    try {
-      cfg.systemMessage = read(filePath);
-    } catch (err) {
+    try { cfg.systemMessage = read(filePath); }
+    catch (err) {
       logger.error(`❌ Failed to load system prompt: ${filePath}`, err);
       throw err;
     }
@@ -79,41 +94,49 @@ if (process.env.SYSTEM_MESSAGE) {
   }
 }
 
-/* ───── defaults for booleans ───── */
-cfg.hideThoughtProcess ??= false;
-cfg.agenticToolcall   ??= true;
+/* ───── defaults ───── */
+cfg.hideThoughtProcess       ??= false;
+cfg.agenticToolcall          ??= true;
+cfg.musicgenProvider         ??= cfg.musicgenProvider ?? 'none';
+cfg.discordUploadLimitBytes  ??= 9_500_000;
 
-/* ───── runtime validations (log + throw) ───── */
+/* ───── runtime validations ───── */
 const { endpoints = {}, search, redis, postgres } = cfg;
 
-invariant(!(cfg.textgenProvider === 'ollama'         && !endpoints.ollama),        'OLLAMA_URL must be set when using Ollama');
-invariant(!(cfg.textgenProvider === 'openrouter'     && !endpoints.openrouter),    'OPENROUTER_URL must be set when using OpenRouter');
+invariant(!(cfg.textgenProvider  === 'ollama'          && !endpoints.ollama),     'OLLAMA_URL must be set when using Ollama');
+invariant(!(cfg.textgenProvider  === 'openrouter'      && !endpoints.openrouter), 'OPENROUTER_URL must be set when using OpenRouter');
 invariant(!(cfg.imagegenProvider === 'stablediffusion' && !endpoints.stablediffusion), 'SD_URL must be set when using Stable Diffusion');
-invariant(!(cfg.voicegenProvider === 'alltalk'       && !endpoints.alltalk),       'ALLTALK_URL must be set when using AllTalk');
-invariant(!(cfg.voicegenProvider === 'elevenlabs'    && !cfg.elevenlabsKey),       'ELEVENLABS_KEY must be set when using ElevenLabs');
+invariant(!(cfg.voicegenProvider === 'alltalk'         && !endpoints.alltalk),    'ALLTALK_URL must be set when using AllTalk');
+invariant(!(cfg.voicegenProvider === 'elevenlabs'      && !cfg.elevenlabsKey),    'ELEVENLABS_KEY must be set when using ElevenLabs');
 if (search?.provider === 'tavily') invariant(!!search.tavilyKey, 'TAVILY_KEY must be set when using Tavily');
+/* --- new ACE-Step guard --- */
+invariant(!(cfg.musicgenProvider === 'acestep' && !endpoints.acestep && !process.env.ACE_STEP_BASE),
+  'ACE_STEP_BASE (or endpoints.acestep) must be set when using AceStep');
 
 if (redis?.enabled) {
   invariant(!!redis.url, 'REDIS_URL must be set when Redis is enabled');
   invariant(Number.isInteger(redis.ttl) && redis.ttl >= -1, 'REDIS_TTL must be an integer ≥ -1');
 }
-
 if (postgres?.enabled) {
   invariant(!!postgres.url, 'POSTGRES_URL must be set when PostgreSQL is enabled');
   invariant(/^postgres(?:ql)?:\/\/.+\/.+$/.test(postgres.url), 'POSTGRES_URL must be a valid connection string');
 }
+/* Upload-limit sanity */
+invariant(Number.isInteger(cfg.discordUploadLimitBytes) && cfg.discordUploadLimitBytes > 0,
+  'discordUploadLimitBytes must be a positive integer');
 
-/* ─────────── produce final, typed object ─────────── */
+/* ─────────── final, typed object ─────────── */
 interface FinalConfig extends BotConfig {
-  hideThoughtProcess: boolean;
-  agenticToolcall:   boolean;
+  hideThoughtProcess:        boolean;
+  agenticToolcall:           boolean;
+  musicgenProvider:          string;
+  discordUploadLimitBytes:   number;
 }
 
-const finalCfg: FinalConfig = {
+export const config = Object.freeze({
   ...cfg,
-  hideThoughtProcess: cfg.hideThoughtProcess,
-  agenticToolcall:    cfg.agenticToolcall,
-};
-
-/** Immutable, application-wide config */
-export const config = Object.freeze(finalCfg) as Readonly<FinalConfig>; // Object.freeze ensures runtime immutability :contentReference[oaicite:5]{index=5}
+  hideThoughtProcess:      cfg.hideThoughtProcess,
+  agenticToolcall:         cfg.agenticToolcall,
+  musicgenProvider:        cfg.musicgenProvider,
+  discordUploadLimitBytes: cfg.discordUploadLimitBytes,
+}) as Readonly<FinalConfig>;

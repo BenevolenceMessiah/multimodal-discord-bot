@@ -49,6 +49,7 @@ endpoints:
   stablediffusion: ${SD_URL:-http://host.docker.internal:7860}
   alltalk: ${ALLTALK_URL:-http://host.docker.internal:7851}
   elevenlabs: ${ELEVENLABS_URL:-https://api.elevenlabs.io/v1}
+  acestep: ${ACE_STEP_BASE:-http://localhost:7867}
 
 # Keys
 openrouterKey: ${OPENROUTER_KEY}
