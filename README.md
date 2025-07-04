@@ -92,7 +92,13 @@ A new tool-call router now lets the LLM embed lines such as
 
 ```bash
 Tool call: /web "how tall is the ISS"
+```
+
+```bash
 Tool call: /img "retro neon corgi"
+```
+
+```bash
 Tool call: /music "rock, electric guitar, drums, bass, 130 bpm, energetic, rebellious, gritty, male vocals
 
 [verse]
@@ -392,8 +398,8 @@ SD_URL=http://host.docker.internal:7860    # Forge FLUX API endpoint
 # Forge/Flux Settings
 FLUX_ENABLED=true
 FLUX_STEPS=20
-FLUX_SAMPLER=euler
-FLUX_SCHEDULE=simple
+FLUX_SAMPLER=Euler
+FLUX_SCHEDULER=Simple
 FLUX_CFG_SCALE=1
 FLUX_DISTILLED_CFG=3.5
 FLUX_SEED=-1
@@ -412,6 +418,7 @@ ELEVENLABS_KEY=                 # Only if using ElevenLabs
 # Web Search (Tavily)
 SEARCH_PROVIDER=tavily          # Currently only "tavily"
 TAVILY_KEY=                     # Your Tavily API key
+SUMMARIZE=false # If true, AI /web tool call will NOT post Tavily links to Discord
 
 # Music Generation (ACE-Step)
 MUSICGEN_PROVIDER=acestep # Currently only ACE-Step
@@ -425,12 +432,11 @@ ACE_STEP_STEPS=200 # Number of inference steps
 # Discord upload safety
 DISCORD_UPLOAD_LIMIT_BYTES=9950000 # 9.5 MB — keeps us under the 10 MB free tier. Note WAV is capped at 5MB on Discord
 
-
 # Bot Behavior & Tuning
-SYSTEM_MESSAGE="# System Rules\nYou are a helpful Discord bot.\n- respond politely\n- cite sources"
-# SYSTEM_MESSAGE="file:./system_prompt.md" # Uncomment to use system_prompt.md. Make sure to comment out the above system message reference if you do this
+#SYSTEM_MESSAGE="# System Rules\nYou are a helpful Discord bot.\n- respond politely\n- cite sources"
+SYSTEM_MESSAGE="file:./system_prompt.md" # Uncomment to use system_prompt.md. Make sure to comment out the above system message reference if you do this
 TEMPERATURE=0.4                 # LLM temperature
-KEEP_ALIVE=10                   # Ollama keep_alive (0 unloads immediately)
+KEEP_ALIVE=0                   # Ollama keep_alive (0 unloads immediately, recommended for best hand off to Stable Diffusion)
 MAX_TOKENS=8192
 CONTEXT_LENGTH=32768            # Max past tokens to include
 WAKE_WORDS='["bot","help"]'     # Comma-separated list of wakewords
@@ -467,7 +473,7 @@ flux:
   modelName: ${FLUX_MODEL_NAME}
   steps: ${FLUX_STEPS:-20}
   sampler: ${FLUX_SAMPLER:-Euler}
-  schedule: ${FLUX_SCHEDULE:-Simple}
+  scheduler: ${FLUX_SCHEDULER:-Simple}
   cfgScale: ${FLUX_CFG_SCALE:-1}
   distilledCfg: ${FLUX_DISTILLED_CFG:-3.5}
   seed: ${FLUX_SEED:--1}
@@ -611,18 +617,18 @@ pie
 
 ### 🔹 Smart Summarizer
 
-- [**Feature**: Summarizes entire channel discussions on-demand (e.g. /summarize), or daily digests via scheduled tasks.]
-- [**Leverages**: LLMs (e.g. GPT‑4) for concise, context-aware summaries.]
+- ***Feature***: Summarizes entire channel discussions on-demand (e.g. /summarize), or daily digests via scheduled tasks.
+- **Leverages**: LLMs (e.g. GPT‑4) for concise, context-aware summaries.
 - *Inspiration/Precedents*:
   - ["Summary Bot" services that compress long chat histories](https://github.com/rauljordan/daily-discord-summarizer)
-  - [GitHub project [Daily Discord Summarizer](https://github.com/rauljordan/daily-discord-summarizer) for scheduled digests]
+  - [Daily Discord Summarizer](https://github.com/rauljordan/daily-discord-summarizer) GitHub project for scheduled digests
   - [TLDRBot-style /tldr implementations for quick summary commands](https://www.notta.ai/en/blog/summary-bot).
 
 ---
 
 ### 🔹 Event Creation & Scheduling
 
-- ^[**Feature**: Slash commands such as /create-event, RSVP, timezone management, reminders, and attendance tracking.]
+- ***Feature***: Slash commands such as /create-event, RSVP, timezone management, reminders, and attendance tracking.
 - *Inspiration/Precedents*:
   - [ScheduleBot](https://github.com/Duinrahaic/ScheduleBot) for community event handling.
   - [Group Up](https://github.com/Burn-E99/GroupUp) using slash commands and threads for events
@@ -632,7 +638,7 @@ pie
 
 ### 🔹 Gamification & Engagement Tools
 
-- [**Feature**: XP/leveling, experience points, leaderboard and role rewards, mini‑games, counting or trivia games, and interactive quests.]
+- ***Feature***: XP/leveling, experience points, leaderboard and role rewards, mini‑games, counting or trivia games, and interactive quests.
 - *Inspiration/Precedents*:
   - [MEE6/Carl‑bot: XP, roles, leveling, reaction roles](https://rewardtheworld.net/gamification-on-discord-engaging-community-members/)
   - [Counting‑style bots for simple community games](https://www.reddit.com/r/Discord_Bots/comments/1i9rk7w/what_are_the_simplest_bots_for_promoting/).
@@ -642,7 +648,7 @@ pie
 
 ### 🔹 /vid: API‑based Video Generation
 
-- *Feature*: /vid command to generate short videos.
+- ***Feature***: `/vid` slash command to generate short videos.
 - *Integration*:
   - [CogVideo](https://github.com/THUDM/CogVideo) and [cogstudio](https://github.com/pinokiofactory/cogstudio) from THUDM — text-to-video API.
 
@@ -650,7 +656,7 @@ pie
 
 ### 🔹 /img2vid: Image‑to‑Video Generation
 
-- *Feature*: /img2vid for animating static images into short videos.
+- ***Feature***: `/img2vid` slash command for animating static images into short videos.
 - *Integration*:
   - [FramePack](https://github.com/lllyasviel/FramePack) for image-to-video support.
 
@@ -658,7 +664,7 @@ pie
 
 ### ✅ /music: AI‑Generated Music Creation
 
-- *Feature*: /music command to compose music clips or tracks.
+- ***Feature***: `/music` slash command to compose music clips or tracks.
 - *Integration*:
   - [ACE‑Step](https://github.com/ace-step/ACE-Step) to generate music via AI.
 

@@ -3,7 +3,7 @@
  * ---------------------------------------------------------------
  * • Hydrates config.yaml with ${ENV} placeholders
  * • Applies .env overrides (camelCase or SNAKE_CASE)
- * • Adds booleans hideThoughtProcess & agenticToolcall
+ * • Adds booleans hideThoughtProcess, agenticToolcall, summarizeSearch
  * • Adds musicgenProvider, discordUploadLimitBytes
  * • Logs meaningful errors via utils/logger.ts
  * • Freezes and exports an immutable, fully-typed object
@@ -50,6 +50,7 @@ const rawYaml = interpolate(read(CONFIG_FILE));
 const cfg = yaml.load(rawYaml) as BotConfig & {
   hideThoughtProcess?:        boolean;
   agenticToolcall?:           boolean;
+  summarizeSearch?:           boolean;
   musicgenProvider?:          string;
   discordUploadLimitBytes?:   number;
 };
@@ -65,6 +66,12 @@ for (const [envKey, val] of Object.entries(process.env)) {
     case 'agentictoolcall':
     case 'agentic_toolcall':
       cfg.agenticToolcall = !/^(false|0|no|off)$/i.test(String(val ?? ''));
+      break;
+    case 'summarize':
+    case 'summarise':  
+    case 'summarizesearch':
+    case 'summarize_search':
+      cfg.summarizeSearch = toBool(val);
       break;
     case 'musicgenprovider':
     case 'musicgen_provider':
@@ -97,6 +104,7 @@ if (process.env.SYSTEM_MESSAGE) {
 /* ───── defaults ───── */
 cfg.hideThoughtProcess       ??= false;
 cfg.agenticToolcall          ??= true;
+cfg.summarizeSearch          ??= false;
 cfg.musicgenProvider         ??= cfg.musicgenProvider ?? 'none';
 cfg.discordUploadLimitBytes  ??= 9_500_000;
 
@@ -129,6 +137,7 @@ invariant(Number.isInteger(cfg.discordUploadLimitBytes) && cfg.discordUploadLimi
 interface FinalConfig extends BotConfig {
   hideThoughtProcess:        boolean;
   agenticToolcall:           boolean;
+  summarizeSearch:           boolean;
   musicgenProvider:          string;
   discordUploadLimitBytes:   number;
 }
@@ -137,6 +146,7 @@ export const config = Object.freeze({
   ...cfg,
   hideThoughtProcess:      cfg.hideThoughtProcess,
   agenticToolcall:         cfg.agenticToolcall,
+  summarizeSearch:         cfg.summarizeSearch,
   musicgenProvider:        cfg.musicgenProvider,
   discordUploadLimitBytes: cfg.discordUploadLimitBytes,
 }) as Readonly<FinalConfig>;

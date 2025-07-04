@@ -14,7 +14,7 @@ flux:
   modelName: ${FLUX_MODEL_NAME}
   steps: ${FLUX_STEPS:-20}
   sampler: ${FLUX_SAMPLER:-Euler}
-  schedule: ${FLUX_SCHEDULE:-Simple}
+  scheduler: ${FLUX_SCHEDULER:-Simple}
   cfgScale: ${FLUX_CFG_SCALE:-1}
   distilledCfg: ${FLUX_DISTILLED_CFG:-3.5}
   seed: ${FLUX_SEED:--1}

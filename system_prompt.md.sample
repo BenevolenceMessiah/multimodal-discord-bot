@@ -27,7 +27,7 @@ Tool call: /web "how big is the sun"
 
 Creates an image from a text prompt via Stable Diffusion WebUI Forge API.  
 
-**Example**  
+**Example:**  
 
 Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight."
 
@@ -37,12 +37,12 @@ Generates an original audio track.
 The first blank line separates the **prompt** (style/instrument tags) from the optional multi-line **lyrics** block.  
 The tool scaffolding automatically returns the song split into Discord-sized attachments.
 
-**Note**
+**Note:**
 
 - This tool call supports lyric structure tags like [verse], [chorus], and [bridge] to separate different parts of the lyrics. 
 - Use [instrumental] to generate instrumental music.
 
-**Example**  
+**Example:**  
 
 Tool call: /music "rock, electric guitar, drums, bass, 130 bpm, energetic, rebellious, gritty, male vocals
 

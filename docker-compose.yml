@@ -12,6 +12,9 @@ services:
       - postgres
     networks:
       - multimodal
+    # dns:
+      # - 8.8.8.8
+      # - 1.1.1.1
     restart: unless-stopped
 
   redis:

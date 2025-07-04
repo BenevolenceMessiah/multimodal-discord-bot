@@ -1,30 +1,58 @@
+/****************************************************************************************
+ * toolCallRouter.ts – routes “/img”, “/web”, and “/music” tool-calls issued by the LLM,
+ *                    then streams results back to Discord. Strictly typed, lint-clean,
+ *                    and guard-protected. Includes 2 000-char chunking for long /web
+ *                    replies to avoid Discord “Invalid Form Body”.
+ ****************************************************************************************/
+
 import {
-  ChannelType,
   TextBasedChannel,
+  TextChannel,
   NewsChannel,
   ThreadChannel,
   DMChannel,
-  TextChannel,
-  EmbedBuilder,
+  AttachmentBuilder,
 } from "discord.js";
 import fetch from "node-fetch";
 
-import { generateImage }   from "../../services/image.js";
-import { generateMusic }   from "../../services/ace.js";        // NEW
-import { chunkAudio }      from "../../src/utils/audio.js";         // NEW
-import { config }          from "../config.js";
+import { generateImage }  from "../../services/image.js";
+import { generateMusic }  from "../../services/ace.js";
+import { chunkAudio }     from "../../src/utils/audio.js";
+import { logger }         from "../../src/utils/logger.js";
+import { config }         from "../config.js";
 
-/* ------------------------------------------------------------------ */
+/* ───────────────────────── typing-indicator helper ────────────────────────── */
 export async function withTyping(
   channel: TextBasedChannel | null,
   fn: () => Promise<void>,
-): Promise<void> { /* … unchanged … */ }
+): Promise<void> {
+  if (
+    channel &&
+    "sendTyping" in channel &&
+    typeof (channel as any).sendTyping === "function"
+  ) {
+    (channel as TextChannel | DMChannel | NewsChannel | ThreadChannel)
+      .sendTyping()
+      .catch((e: unknown) =>
+        logger.warn(`sendTyping failed: ${(e as NodeJS.ErrnoException).code ?? (e as Error).message}`),
+      );
+  }    
+  await fn(); // always run the actual tool
+}
 
-/* ──────────────── Helper types ───────────────── */
+/* ─────────────────────────── utils & shared types ─────────────────────────── */
 type ToolCall = { cmd: string; arg: string };
-interface TavilyResult { title: string; url: string; snippet: string }
 
-/* ─────────────── Regex + utils ───────────────── */
+/** sub-union of TextBasedChannel that actually has `.send()` */
+type SendableChannel = Extract<TextBasedChannel, { send: (...a: any[]) => any }>;
+
+interface TavilyHit {
+  title: string;
+  url: string;
+  content: string;
+}
+
+/** Regex consumed by other helpers – must stay exported. */
 export const TOOL_CALL_RE =
   /(?:^|\n)\s*(?:tool\s*call|toolcall)\s*:\s*\/(\w+)\s+([^\n]+)/gim;
 
@@ -33,20 +61,25 @@ const WRAPPERS: Record<string, string> = {
 };
 const stripWrapper = (raw: string) => {
   const t = raw.trim();
-  const w = WRAPPERS[t[0]];
+  const w = WRAPPERS[t[0] as keyof typeof WRAPPERS];
   return w && t.endsWith(w) ? t.slice(1, -1).trim() : t;
 };
-const isSendableChannel = (c: TextBasedChannel) =>
-  [
-    ChannelType.GuildText,
-    ChannelType.GuildAnnouncement,
-    ChannelType.PublicThread,
-    ChannelType.PrivateThread,
-    ChannelType.AnnouncementThread,
-    ChannelType.DM,
-  ].includes(c.type);
 
-/* ───────────── MAIN DISPATCHER ───────────── */
+/** guard that removes TS2339 linting around `.send()` */
+const isSendable = (c: TextBasedChannel | null): c is SendableChannel =>
+  !!c && "send" in c && typeof (c as any).send === "function";
+
+/** send long text in ≤2 000-char chunks with a small pause to dodge rate-limit */
+async function sendChunked(ch: SendableChannel, text: string) {
+  const CHUNK = 1_990;                                   // ≤2 000 incl. ellipsis if added
+  const parts = text.match(new RegExp(`.{1,${CHUNK}}`, "gs")) ?? [];
+  for (let i = 0; i < parts.length; i++) {
+    await ch.send(parts[i] + (i < parts.length - 1 ? " …" : ""));
+    if (parts.length > 1) await new Promise(r => setTimeout(r, 1_500));
+  }
+}
+
+/* ───────────────────────────── main router ───────────────────────────── */
 export async function tryHandleToolCall(
   rawText: string,
   channel: TextBasedChannel,
@@ -63,89 +96,84 @@ export async function tryHandleToolCall(
     calls.map(async ({ cmd, arg }) => {
       try {
         switch (cmd) {
-          /* ---------- /img ---------- */
+          /* ───────────── /img – Stable Diffusion Forge ───────────── */
           case "img": {
-            const attachment = await generateImage(arg);
-            if (isSendableChannel(channel))
-              await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send({
+            const img = await generateImage(arg);               // returns AttachmentBuilder
+            if (isSendable(channel))
+              await channel.send({
                 content: `🖼️ **Generated:** ${arg}`,
-                files: [{ attachment: attachment.attachment, name: "image.png" }],
+                files  : [img as AttachmentBuilder],
               });
             break;
           }
 
-          /* ---------- /web ---------- */
+          /* ───────────── /web – Tavily Search (POST + fallback) ───────────── */
           case "web": {
-            if (!process.env.TAVILY_KEY) {
-              if (isSendableChannel(channel))
-                await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send(
-                  "⚠️ Tavily key missing – set `TAVILY_KEY` in your env.",
-                );
+            const key = process.env.TAVILY_KEY;
+            if (!key) {
+              if (isSendable(channel))
+                await channel.send("⚠️ Tavily key missing – set `TAVILY_KEY`.");
               return;
             }
-            const key = process.env.TAVILY_KEY;
-            const url = `https://api.tavily.com/search?api_key=${key}&query=${encodeURIComponent(arg)}&max_results=5`;
-            const res = await fetch(url);
+
+            const body = { query: arg, max_results: 8, include_answer: true };
+            let res = await fetch("https://api.tavily.com/search", {
+              method : "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+              body   : JSON.stringify(body),
+            });
+
+            /* legacy GET fallback for older keys that reject POST/Bearer */
+            if (res.status === 401) {
+              const url = `https://api.tavily.com/search?api_key=${key}&query=${encodeURIComponent(arg)}&max_results=8&include_answer=true`;
+              res = await fetch(url);
+            }
             if (!res.ok) throw new Error(`Tavily error: ${res.status}`);
 
-            const { results = [] } = (await res.json()) as { results: TavilyResult[] };
-            const embed = new EmbedBuilder()
-              .setTitle(`🔎 Tavily results for “${arg}”`)
-              .setFooter({ text: "Powered by Tavily" });
-            for (const { title, url, snippet } of results) {
-              embed.addFields({ name: title, value: `[Link](${url})\n${snippet}` });
-            }
-            if (isSendableChannel(channel))
-              await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send({ embeds: [embed] });
-            break;
-          }
+            const { answer = "", results = [] } =
+              (await res.json()) as { answer?: string; results: TavilyHit[] };
 
-          /* ---------- /music ---------- */
-          case "music": {
-            // Split first blank line into prompt & lyrics
-            const [prompt, ...rest] = arg.split(/\n\s*\n/);
-            const lyrics = rest.join("\n").trim();
-
-            try {
-              const audio = await generateMusic({
-                prompt: prompt.trim(),
-                lyrics,
-                format: (process.env.ACE_STEP_FORMAT ?? "mp3") as "mp3" | "wav" | "flac",
-              });
-              const parts = await chunkAudio(audio);
-
-              // Discord: ≤10 attachments/message
-              for (let idx = 0; idx < parts.length; idx += 10) {
-                const slice = parts.slice(idx, idx + 10);
-                if (isSendableChannel(channel))
-                  await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send({
-                    content: `🎶 Track segment ${idx / 10 + 1}/${Math.ceil(parts.length / 10)}`,
-                    files: slice.map(p => ({ attachment: p })),
-                  });
+            if (!config.summarizeSearch && isSendable(channel)) {
+              const lines: string[] = answer ? [`**Answer** → ${answer}`] : [];
+              for (const { title, url, content } of results) {
+                lines.push(`• **${title}** – ${content.slice(0, 140).trim()}…\n${url}`);
               }
-            } catch (err) {
-              console.error("ACE-Step error:", err);
-              if (isSendableChannel(channel))
-                await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send(
-                  "🚨 Unable to generate music – is ACE-Step running?",
-                );
+              await sendChunked(channel, lines.join("\n\n"));
             }
             break;
           }
 
-          /* ---------- unknown ---------- */
+          /* ───────────── /music – ACE-Step generation ───────────── */
+          case "music": {
+            const [prompt, ...rest] = arg.split(/\n\s*\n/);
+            const audio = await generateMusic({
+              prompt: prompt.trim(),
+              lyrics: rest.join("\n").trim(),
+              format: (process.env.ACE_STEP_FORMAT ?? "mp3") as "mp3" | "wav" | "flac",
+            });
+
+            const parts = await chunkAudio(audio);               // Buffer[]
+            for (let i = 0; i < parts.length; i += 10) {
+              if (isSendable(channel))
+                await channel.send({
+                  content: `🎶 Track segment ${i / 10 + 1}/${Math.ceil(parts.length / 10)}`,
+                  files  : parts
+                             .slice(i, i + 10)
+                             .map((buf, idx) => new AttachmentBuilder(buf, { name: `segment_${i + idx}.mp3` })),
+                });
+            }
+            break;
+          }
+
+          /* ───────────── unknown tool ───────────── */
           default:
-            if (isSendableChannel(channel))
-              await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send(
-                `❌ Unknown tool \`/${cmd}\``,
-              );
+            if (isSendable(channel))
+              await channel.send(`❌ Unknown tool \`/${cmd}\``);
         }
       } catch (err) {
-        console.error("Tool router error:", err);
-        if (isSendableChannel(channel))
-          await (channel as TextChannel | NewsChannel | ThreadChannel | DMChannel).send(
-            "🚨 Error while running that tool call.",
-          );
+        logger.error("Tool router error:", err);
+        if (isSendable(channel))
+          await channel.send("🚨 Error while running that tool call.");
       }
     }),
   );
