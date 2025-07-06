@@ -4,9 +4,23 @@
 
 import 'dotenv/config';
 import {
-  Client, GatewayIntentBits, Partials, Collection, REST, Routes,
-  ChatInputCommandInteraction, TextBasedChannel,
+  Client,
+  GatewayIntentBits,
+  Partials,
+  Collection,
+  REST,
+  Routes,
+  ChatInputCommandInteraction,
+  TextBasedChannel,
 } from 'discord.js';
+import fs   from 'node:fs';          // 👈 NEW  (needed for fs.readdirSync)
+import path from 'node:path';
+
+/* ── ESM-safe __dirname / __filename polyfill ──────────────────────── */
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 import { logger }  from './utils/logger.js';
 import { config }  from './config.js';
 
@@ -16,41 +30,51 @@ import { pushMessage, getContext }    from '../services/cache.js';
 
 /* Utilities --------------------------------------------------------- */
 import { formatToolCallLine } from './utils/formatToolCall.js';
-import { withTyping, splitMessage }  from './utils/messageUtils.js';
-import { tryHandleToolCall }        from './utils/toolCallRouter.js';
-import { stripThought }             from './utils/stripThought.js';
-import { splitByToolCalls }         from './utils/splitByToolCalls.js';
+import { withTyping, splitMessage }   from './utils/messageUtils.js';
+import { tryHandleToolCall }         from './utils/toolCallRouter.js';
+import { stripThought }              from './utils/stripThought.js';
+import { splitByToolCalls }          from './utils/splitByToolCalls.js';
 
-/* Slash-command registrations -------------------------------------- */
+/* Slash-command modules -------------------------------------------- */
 import { data as imgData,    execute as imgExec }    from '../commands/img.js';
 import { data as sayData,    execute as sayExec }    from '../commands/say.js';
 import { data as webData,    execute as webExec }    from '../commands/web.js';
-import { data as musicData,  execute as musicExec }  from '../commands/music.js';   // NEW
+import { data as musicData,  execute as musicExec }  from '../commands/music.js';
 import { data as threadData, execute as threadExec } from '../commands/thread.js';
 import { data as threadPrivData, execute as threadPrivExec } from '../commands/threadPrivate.js';
 import { data as clearData,  execute as clearExec }  from '../commands/clear.js';
+import { data as lorasData, execute as lorasExec } from "../commands/loras.js";
 
 /* Services --------------------------------------------------------- */
 import { logInteraction } from '../services/db.js';
 import { generateText }   from '../services/llm.js';
 
-type CmdHandler = (i: ChatInputCommandInteraction) => Promise<void>;
-
 /* ---------------- registered slash commands ----------------------- */
 const commands = [
-  imgData, sayData, webData, musicData, threadData, threadPrivData, clearData,
+  imgData, sayData, webData, musicData, threadData, threadPrivData, clearData, lorasData,
 ];
+type CmdHandler = (i: ChatInputCommandInteraction) => Promise<void>;
 const handlers = new Collection<string, CmdHandler>([
   ['img',            imgExec],
   ['say',            sayExec],
   ['web',            webExec],
-  ['music',          musicExec],   // NEW
+  ['music',          musicExec],
   ['thread',         threadExec],
   ['thread-private', threadPrivExec],
   ['clear',          clearExec],
-]);
+  ["loras", lorasExec],
+  ] as Iterable<[string, CmdHandler]>
+);
 
-/* ─── Discord client bootstrap ───────────────────────────────────── */
+/* ─── Discord client bootstrap ─────────────────────────────────────── */
+
+/** Augment the Client type so TS is happy with `.commands` */
+declare module 'discord.js' {
+  interface Client {
+    commands: Collection<string, CmdHandler>;
+  }
+}
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -62,43 +86,37 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.once('ready', () =>
+/* attach the command map */
+client.commands = handlers; // pattern from the official guide
+
+client.once('ready', () => {
   client.user
     ? logger.info(`✅ Logged in as ${client.user.tag}`)
-    : logger.error('🚨 Client user is null on ready event.'),
-);
+    : logger.error('🚨 Client user is null on ready event.');
+});
 
-/* ──────────────────── helper utilities ────────────────────────────── */
+/* ─── Dynamic event loader (e.g. autocomplete listener) ───────────── */
 
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const candidateDirs = [
+  path.join(__dirname, 'events'),        // dist/src/events  (TS keeps src tree)
+  path.join(__dirname, '../events'),     // dist/events      (flat build)
+];
+
+for (const eventsPath of candidateDirs) {
+  if (!fs.existsSync(eventsPath)) continue;          // ⬅️ skip if directory absent
+  for (const file of fs.readdirSync(eventsPath)) {
+    if (!file.endsWith('.js')) continue;
+    import(path.join(eventsPath, file))
+      .then(({ name, execute }) => client.on(name, execute))
+      .catch((e) => logger.error(`Failed loading event ${file}: ${e}`));
+  }
 }
 
-function extractResponseContent(full: string, botName: string): string {
-  const START = '<final_response>';
-  const END   = '</final_response>';
-
-  const raw =
-    full.includes(START) && full.includes(END) && full.indexOf(START) < full.indexOf(END)
-      ? full.slice(full.indexOf(START) + START.length, full.indexOf(END))
-      : full;
-
-  return raw.replace(new RegExp(`^${escapeRegex(botName)}:\\s*`, 'i'), '').trim();
-}
-
-function saveBotMsg(channelId: string, botName: string, text: string): void {
-  if (!text) return;
-  config.redis?.enabled
-    ? pushMessage(channelId, botName, text)
-    : pushToMemory(channelId, botName, text);
-}
-
-/* ───────────────────── slash-command dispatcher ───────────────────── */
-
+/* ───────────────────── slash-command dispatcher ──────────────────── */
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  const start   = Date.now();
+  const start = Date.now();
   const handler = handlers.get(interaction.commandName);
 
   if (!handler) {
@@ -132,12 +150,11 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-/* ───────────────────────────── message router ─────────────────────── */
-
+/* ─────────────────────────── message router ──────────────────────── */
 client.on('messageCreate', async (msg) => {
-  if (msg.author.bot) return;                                // ignore bots
+  if (msg.author.bot) return;
 
-  /* user-typed raw tool calls */
+  /* tool-call short-circuit */
   if (await tryHandleToolCall(msg.content, msg.channel)) return;
 
   if (!client.user) return;
@@ -151,9 +168,8 @@ client.on('messageCreate', async (msg) => {
 
   if (!isDM && !mentioned && !wakeWordUsed) return;
 
-  /* ── build clean user prompt ─────────────────────────────────────── */
+  /* clean user prompt ------------------------------------------------ */
   let userPrompt = msg.content;
-
   if (mentioned)
     userPrompt = userPrompt.replace(new RegExp(`<@!?${botUser.id}>`, 'g'), '').trim();
 
@@ -173,33 +189,33 @@ client.on('messageCreate', async (msg) => {
     return;
   }
 
-  /* ── LLM + tool orchestration ────────────────────────────────────── */
+  /* LLM orchestration ------------------------------------------------ */
   try {
     await withTyping(msg.channel as TextBasedChannel, async () => {
-      /* 1️⃣ store user prompt */
+      /* 1️⃣ store prompt */
       config.redis?.enabled
         ? await pushMessage(msg.channelId, msg.author.username, userPrompt)
         : pushToMemory(msg.channelId, msg.author.username, userPrompt);
 
-      /* 2️⃣ retrieve context */
+      /* 2️⃣ context */
       const context = await getContext(msg.channelId);
       logger.info(
         `LLM > ${msg.author.tag} | prompt "${userPrompt}" (${context.split('\n').length} ctx lines)`,
       );
 
-      /* 3️⃣ get model reply */
+      /* 3️⃣ model reply */
       const rawReply = await generateText(context);
 
-      /* 4️⃣ unwrap and strip bot-name prefix */
+      /* 4️⃣ unwrap */
       const cleanFull = extractResponseContent(rawReply, botUser.username);
 
-      /* 5️⃣ split at first & subsequent tool calls */
+      /* 5️⃣ split tool calls */
       const { textBefore, calls, textAfter } = splitByToolCalls(cleanFull);
 
       const before = config.hideThoughtProcess ? stripThought(textBefore) : textBefore;
       const after  = config.hideThoughtProcess ? stripThought(textAfter)  : textAfter;
 
-      /* 6️⃣ lead-in narration (if any) */
+      /* 6️⃣ lead-in narration */
       if (before) {
         const chunks = splitMessage(before, 1_800);
         await msg.reply(chunks[0]);
@@ -207,20 +223,20 @@ client.on('messageCreate', async (msg) => {
         saveBotMsg(msg.channelId, botUser.username, before);
       }
 
-      /* 6️⃣-b short-circuit when NO tool calls */
+      /* 6️⃣-b early exit */
       if (calls.length === 0) {
-        if (after) saveBotMsg(msg.channelId, botUser.username, after); // keep history tidy
+        if (after) saveBotMsg(msg.channelId, botUser.username, after);
         return;
       }
 
-      /* 6️⃣-c visible, prettified tool-call lines */
+      /* 6️⃣-c pretty tool-call lines */
       for (const raw of calls) {
         const pretty = formatToolCallLine(raw);
         await msg.channel.send(pretty);
         saveBotMsg(msg.channelId, botUser.username, pretty);
       }
 
-      /* 7️⃣ execute each call, confirm afterward */
+      /* 7️⃣ execute calls */
       for (const line of calls) {
         await tryHandleToolCall(line, msg.channel);
         await msg.channel.send('🤖 *Tool execution complete!*');
@@ -246,8 +262,7 @@ client.on('messageCreate', async (msg) => {
   }
 });
 
-/* ────────────────── slash-command registration & login ────────────── */
-
+/* ────────────────── slash-command registration & login ───────────── */
 (async () => {
   if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID) {
     logger.error('Missing DISCORD_TOKEN or CLIENT_ID env vars');
@@ -271,3 +286,25 @@ client.on('messageCreate', async (msg) => {
     process.exit(1);
   }
 })();
+
+/* ──────────────────────────── helpers ─────────────────────────────── */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractResponseContent(full: string, botName: string): string {
+  const START = '<final_response>';
+  const END   = '</final_response>';
+  const raw =
+    full.includes(START) && full.includes(END) && full.indexOf(START) < full.indexOf(END)
+      ? full.slice(full.indexOf(START) + START.length, full.indexOf(END))
+      : full;
+  return raw.replace(new RegExp(`^${escapeRegex(botName)}:\\s*`, 'i'), '').trim();
+}
+
+function saveBotMsg(channelId: string, botName: string, text: string): void {
+  if (!text) return;
+  config.redis?.enabled
+    ? pushMessage(channelId, botName, text)
+    : pushToMemory(channelId, botName, text);
+}

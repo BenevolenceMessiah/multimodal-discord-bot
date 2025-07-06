@@ -21,6 +21,7 @@
   "include": [
     "src/**/*.ts",
     "commands/**/*.ts",
-    "services/**/*.ts"
+    "services/**/*.ts",
+    "events/**/*.ts"
   ]
 }

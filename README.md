@@ -52,7 +52,8 @@ A feature-rich Discord bot with **AI-powered text generation**, **image creation
 - Integration with **Stable Diffusion WebUI Forge** for high-quality image synthesis  
 - **Custom model support** via `FLUX_MODEL_NAME` (e.g., EVERFLUX_x1)  
 - Text-to-image generation with configurable steps (default: 28)  
-- Fast GPU-accelerated generation when using local SD instance  
+- Fast GPU-accelerated generation when using local SD instance
+- Interactive `/loras` browser with pagination, image previews, and remote fallback support
 
 ### 🎵 Dynamic Music Generation  
 
@@ -307,13 +308,25 @@ Performs a real-time web search.
 
 Tool call: /web "how big is the sun"
 
-### /img – Stable Diffusion Image Generation  
+### /img – Stable Diffusion Image Generation
 
-Creates an image from a text prompt via Stable Diffusion WebUI Forge API.  
+Creates an image from a text prompt via Stable Diffusion WebUI Forge API.
 
-**Example**  
+**Note:**
+
+- This tool call supports the use of LoRAs - (low rank adaptation) which modifies the image generation.
+- In the event the user intends to use a LoRA, you will be handed an image generation request that ends with either `--lora name-of-LoRA` or `lora:"name-of-LoRA"`.
+- A user may stack multiple LoRAs via either spaces or commas: `lora:"lora-1 lora-2"` -or- `lora:"lora-1,lora-2"`.
+- Never inject your own `--lora` or `lora:""` inputs into the prompt. Only pass user-requested LoRA settings to the end of the prompt.
+- Ensure you pass user LoRA requests verbatim - they are case-sensitive.
+
+**Example 1:**  
 
 Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight."
+
+**Example 2:**
+
+Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight. lora:"aeshteticv5 cinematic-lights""
 
 ### /music – ACE-Step Text-to-Music Generation
 
@@ -321,12 +334,12 @@ Generates an original audio track.
 The first blank line separates the **prompt** (style/instrument tags) from the optional multi-line **lyrics** block.  
 The tool scaffolding automatically returns the song split into Discord-sized attachments.
 
-**Note**
+**Note:**
 
 - This tool call supports lyric structure tags like [verse], [chorus], and [bridge] to separate different parts of the lyrics. 
 - Use [instrumental] to generate instrumental music.
 
-**Example**  
+**Example:**  
 
 Tool call: /music "rock, electric guitar, drums, bass, 130 bpm, energetic, rebellious, gritty, male vocals
 
@@ -394,6 +407,7 @@ OPENROUTER_KEY=                # Only if using OpenRouter
 IMAGEGEN_PROVIDER=stablediffusion
 FLUX_MODEL_NAME=EVERFLUX_x1
 SD_URL=http://host.docker.internal:7860    # Forge FLUX API endpoint
+FORGE_HOST=http://host.docker.internal:7869 # Dedicated LoRA API endpoint
 
 # Forge/Flux Settings
 FLUX_ENABLED=true
@@ -540,13 +554,26 @@ hideThoughtProcess: ${HIDE_THOUGHT_PROCESS:-false}
 
 ### Core Commands  
 
-| Command          | Description                        | Example                                                  |  
-|------------------|------------------------------------|----------------------------------------------------------|  
-| `/say [prompt]`  | Echo user input        | `/say Testing, testing, 1,2,3`                           |  
-| `/img [prompt]`  | Generate image from text           | `/img Mystical forest at dusk`                           |  
-| `/music [spec]`  | Generate music (prompt + lyrics)   | `/music rock, 130 bpm\n\n[chorus] Frozen Turtle …`       |  
-| `/web [topic]`   | Run a Tavily web search            | `/web Current weather in Tokyo`                          |  
-| `/clear`         | Reset conversation memory          | `/clear`                                                 |  
+| Command          | Description                        | Example                                                  |
+|------------------|------------------------------------|----------------------------------------------------------|
+| `/say [prompt]`  | Echo user input                    | `/say Testing, testing, 1,2,3`                           |
+| `/img [prompt], [lora]`  | Generate image from text, use asw many LoRAs as you want           | `/img Mystical forest at dusk`                           |
+| `/music [spec]`  | Generate music (prompt + lyrics)   | `/music rock, 130 bpm\n\n[chorus] Frozen Turtle …`       |
+| `/loras [page]`  | Browse available LoRAs             | `/loras page: 2`                                         |
+| `/loras view: [number]` | Show full image for a listed LoRA  | `/loras view: 5`                                        |
+| `/web [topic]`   | Run a Tavily web search            | `/web Current weather in Tokyo`                          |
+| `/clear`         | Reset conversation memory          | `/clear`                                                 |
+
+#### 🎨 LoRA Browser (`/loras`)
+
+- Interactive pagination using Prev / Next / Refresh buttons within █ Discord embeds  
+- View LoRAs in pages of up to 10 items each (configurable page size)  
+- Display thumbnails (PNG, JPG, JPEG, or GIF) for the first LoRA in each page  
+  - Oversized images (greater than ~256 KB) are automatically downscaled on the fly (≈128 px wide, JPEG quality 80%)  
+- **`page` option** lets users start browsing from a specific page number (1-based)  
+- **`view` option** lets users fetch the full-resolution thumbnail (under 10 MB) for a specific LoRA index—sent as a direct attachment  
+- **Refresh button** in embeds rescans LoRAs and resets to page 1 without rerunning the slash command  
+
 
 ### Thread Management  
 
@@ -607,7 +634,8 @@ pie
 2. **Context Awareness**: The bot maintains separate memory per channel  
 3. **Hybrid Mode**: Combine local (Ollama/AllTalk) and cloud (OpenRouter/ElevenLabs) providers  
 4. **Rate Limiting**: Built-in safeguards prevent API abuse  
-5. **Web Research**: Use `/web` to fetch up-to-date information for complex queries  
+5. **Web Research**: Use `/web` to fetch up-to-date information for complex queries
+6. Upon updating, check the `system_prompt.md.sample` and `.env.sample` files for new options and Agentic function incorporation.
 
 ---
 

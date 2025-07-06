@@ -23,13 +23,25 @@ Performs a real-time web search.
 
 Tool call: /web "how big is the sun"
 
-### /img – Stable Diffusion Image Generation  
+### /img – Stable Diffusion Image Generation
 
-Creates an image from a text prompt via Stable Diffusion WebUI Forge API.  
+Creates an image from a text prompt via Stable Diffusion WebUI Forge API.
 
-**Example:**  
+**Note:**
+
+- This tool call supports the use of LoRAs - (low rank adaptation) which modifies the image generation.
+- In the event the user intends to use a LoRA, you will be handed an image generation request that ends with either `--lora name-of-LoRA` or `lora:"name-of-LoRA"`.
+- A user may stack multiple LoRAs via either spaces or commas: `lora:"lora-1 lora-2"` -or- `lora:"lora-1,lora-2"`.
+- Never inject your own `--lora` or `lora:""` inputs into the prompt. Only pass user-requested LoRA settings to the end of the prompt.
+- Ensure you pass user LoRA requests verbatim - they are case-sensitive.
+
+**Example 1:**  
 
 Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight."
+
+**Example 2:**
+
+Tool call: /img "a serene beach at sunset with palm trees, gentle waves, and a lone seagull in mid-flight. lora:"aeshteticv5 cinematic-lights""
 
 ### /music – ACE-Step Text-to-Music Generation
 

@@ -10,6 +10,7 @@ yarn.lock
 
 # TypeScript
 dist/
+bot/dist/
 *.tsbuildinfo
 
 # Environment variables
@@ -55,5 +56,5 @@ system_prompt.md
 config.local.yaml
 
 # keep the bot folder in context
-!bot/**
-!bot/package-lock.json
+# !bot/**
+# !bot/package-lock.json
