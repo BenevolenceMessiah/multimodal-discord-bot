@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    /* Language & module settings */
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+
+    /* JSX */
+    "jsx": "react-jsx",
+
+    /* Interop & ergonomics */
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+
+    /* Strictness */
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Only these type libraries—no `electron` here */
+    "types": [
+      "node",
+      "react",
+      "react-dom"
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+######################## 📦 build stage ########################
+ARG PNPM_VERSION=9
+FROM node:lts-alpine AS build
+WORKDIR /build
+
+# 1️⃣ tooling
+RUN npm i -g pnpm@${PNPM_VERSION}
+
+# 2️⃣ root + package manifests
+COPY ../pnpm-workspace.yaml ../pnpm-lock.yaml ./
+COPY ../package.json                ./
+COPY ../tsconfig.base.json          ./
+COPY ../core/package.json           core/
+COPY ../webui-client/package.json   webui-client/
+COPY ../webui-server/package.json   webui-server/
+RUN pnpm install --frozen-lockfile                    # dev + prod deps
+
+# 3️⃣ sources ➜ compile / bundle
+COPY ../core          core
+COPY ../webui-client  webui-client
+COPY ../webui-server  webui-server
+
+RUN pnpm exec tsc -p core/tsconfig.json          \
+ && pnpm exec tsc -p webui-server/tsconfig.json  \
+ && pnpm --filter @multimodal/webui-client run build      # ➜ webui-client/dist
+
+# (‼️) NEVER copy the template public/ folder again – keep Vite output intact
+# Patch the built index.html so it references the *hashed* assets
+RUN set -e; \
+    jsfile="$(basename "$(ls webui-client/dist/assets/index-*.js  | head -n1)")"; \
+    cssfile="$(basename "$(ls webui-client/dist/assets/index-*.css | head -n1)")"; \
+    sed -i "s@/src/main.tsx@/assets/${jsfile}@g" \
+          webui-client/dist/index.html; \
+    sed -i "/<head>/a\\    <link rel=\"stylesheet\" href=\"/assets/${cssfile}\" />" \
+          webui-client/dist/index.html
+
+# 3-d) move the ENTIRE built dist/ folder into the server
+RUN rm -rf webui-server/dist/public \
+ && mkdir -p  webui-server/dist \
+ && cp -a webui-client/dist        webui-server/dist/public
+
+# sanity
+RUN echo '--- dist/public tree ---' && ls -R webui-server/dist/public | sed 's/^/  /'
+
+# 4️⃣ pack @multimodal/core for fast prod install
+RUN pnpm --filter @multimodal/core pack --pack-destination /tmp \
+ && mv /tmp/multimodal-core-*.tgz /tmp/core.tgz
+
+######################## 🚀 runtime stage ######################
+FROM node:lts-alpine AS runtime
+WORKDIR /app
+
+# 1. artefacts
+COPY --from=build /build/webui-server/dist   webui-server/dist
+COPY --from=build /tmp/core.tgz              /tmp/
+COPY ../webui-server/package.json            webui-server/
+
+# 2. prod‑only install (+ drivers)
+WORKDIR /app/webui-server
+RUN node - <<'NODE'
+  const fs = require('fs');
+  const pkgPath = 'package.json';
+  const pkg = JSON.parse(fs.readFileSync(pkgPath,'utf8'));
+
+  pkg.dependencies = Object.assign(pkg.dependencies ?? {}, {
+    "@multimodal/core": "file:/tmp/core.tgz",
+    express            : "^4.19.2",   // 👈  add this line
+    pg                 : "^8.11.5",
+    redis              : "^4.6.11",
+    multer             : "^2.0.2"
+  });
+
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg,null,2));
+NODE
+
+RUN npm install --omit=dev
+
+# ---------- NEW: create uploads dir while still root -------------
+RUN mkdir -p dist/public/uploads \
+ && chmod 777 dist/public/uploads          # <— open perms; or use 775 later
+
+# 3. create non‑root user  ➜ now chown safely
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+ && chown -R appuser:appgroup dist/public/uploads
+
+USER appuser
+
+# 4. port – honour $WEBUI_PORT if set
+ARG WEBUI_PORT=3000
+ENV PORT=$WEBUI_PORT
+EXPOSE $WEBUI_PORT
+
+CMD ["node","dist/index.js"]
+

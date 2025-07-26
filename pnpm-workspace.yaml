@@ -1,0 +1,6 @@
+packages:
+  - 'bot'
+  - 'core'
+  - 'webui-client'
+  - 'webui-server'
+  - 'electron'

@@ -1,0 +1,42 @@
+/* ===== Cyber‑Terminal Theme ===== */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--font-family: 'Quicksand', sans-serif;
+	--color-bg: #0a1a1a;
+	--color-cyan: #00ffff;
+	--color-magenta:#ff00ff;
+}
+
+html,body,#root{height:100%;}
+body{
+	@apply flex flex-col items-center justify-start min-h-full p-6 text-teal-100;
+	background:linear-gradient(135deg,var(--color-bg) 0%,#001010 100%);
+	font-family:var(--font-family);
+}
+
+/* glowing frame for main card */
+.card {
+	@apply w-full max-w-3xl rounded-xl border p-6 shadow-xl bg-black/70 border-cyan-400 relative overflow-hidden;
+}
+.card::before{
+	content:"";@apply absolute inset-0 rounded-xl border border-cyan-400 pointer-events-none;
+	animation:borderGlow 3s ease-in-out infinite alternate;
+}
+@keyframes borderGlow{
+	0%{box-shadow:0 0 6px var(--color-cyan);}
+	50%{box-shadow:0 0 12px var(--color-magenta);}
+	100%{box-shadow:0 0 6px var(--color-cyan);}
+}
+
+/* buttons */
+.btn{
+	@apply px-4 py-2 rounded-md font-semibold transition-transform;
+	background:linear-gradient(135deg,var(--color-cyan),var(--color-magenta));
+	color:#001010;
+}
+.btn:hover{transform:scale(1.05);}

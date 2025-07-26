@@ -1,27 +1,30 @@
 {
+  // Re-use the shared compiler base in the repo root
+  "extends": "../tsconfig.base.json",
+
   "compilerOptions": {
-    /* Language & module targets */
-    "target": "ES2022",
-    "module": "ESNext",  // ← Updated from "CommonJS" to "ESNext"
+    /* Modern JS output (import.meta, bigints, etc.) */
+    "module": "es2022",
+    "target": "es2022",
     "moduleResolution": "node",
-    /* let TS auto-scan node_modules/@types */
 
-    /* Project layout */
-    "rootDir": ".",                     // ← include commands/ & services/
-    "outDir": "dist",
-
-    /* Interop & safety */
-    "esModuleInterop": true,
+    /* Interop & runtime accuracy */
+    "downlevelIteration": true,          // fixes Set / Map iterator errors
+    "esModuleInterop": true,             // default-import Node/Browsers libs
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    /* Project layout */
+    "rootDir": ".",                      // let TS include src + commands + services
+    "outDir": "dist"
   },
 
-  /* Compile everything under src/, commands/, services/ */
+  /* What to compile */
   "include": [
-    "src/**/*.ts",
-    "commands/**/*.ts",
-    "services/**/*.ts",
-    "events/**/*.ts"
+    "src/**/*",
+    "commands/**/*",
+    "services/**/*",
+    "events/**/*"
   ]
 }

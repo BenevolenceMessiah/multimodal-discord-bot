@@ -1,0 +1,26 @@
+{
+  /* inherit all strict / paths / module settings from the monorepo root */
+  "extends": "../tsconfig.base.json",
+
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir":  "dist",
+    "types": ["react", "react-dom"],
+
+    /* allow absolute (“src/…”) imports */
+    "baseUrl": "src",
+    "paths": {
+      "*": ["*", "types/*"]
+    },
+
+    /* suppress third‑party d.ts clashes (React 19 prerelease, etc.) */
+    "skipLibCheck": true
+  },
+
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/types/**/*.d.ts",
+    "public/index.html"
+  ]
+}

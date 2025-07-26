@@ -1,40 +1,41 @@
 ############################################
-# ⏳ build stage – compile TypeScript
+# 1️⃣ build stage – compile the TypeScript bot
 ############################################
 FROM node:23-alpine AS build
 WORKDIR /app
 
-# 1️⃣ copy root manifests (they declare fluent-ffmpeg + sharp)
-COPY package*.json ./
+# Shared config + root manifests (for types)
+COPY ../tsconfig.base.json ./
+COPY ../package*.json ./
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+ && npm install                          # dev + prod deps for tsc
 
-# 2️⃣ install *all* deps so TypeScript sees @types/* and sharp headers
-ENV NODE_ENV=development
-RUN apk update && \
-    apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci
+# ✅ Add this line to include bot sources
+COPY ../bot ./bot
 
-# 3️⃣ copy bot source and compile
-COPY bot ./bot
+# Compile
 WORKDIR /app/bot
-RUN npm run build               # outputs to /app/bot/dist
+RUN npm run build                        # → /app/bot/dist
 
 ############################################
-# 🚀 runtime stage – slim, prod-only
+# 2️⃣ runtime stage – tiny Alpine + FFmpeg
 ############################################
-FROM node:23-alpine
-WORKDIR /app/bot
-ENV NODE_ENV=production
+FROM jrottenberg/ffmpeg:6.1-alpine AS ffmpeg
 
-# 4️⃣ install runtime deps
-COPY package*.json ../
+FROM node:23-alpine AS runtime
 WORKDIR /app
-RUN npm ci --omit=dev           # installs sharp because it's now a prod dep
+
+# Runtime deps only
+COPY ../package*.json ./
+RUN npm install --omit=dev
+
+# FFmpeg + shim
+COPY --from=ffmpeg /usr/local/ /usr/local/
+RUN printf '#!/bin/sh\\nexec ffmpeg -v quiet -print_format json -show_format -show_streams \"$@\"\\n' \
+      > /usr/local/bin/ffprobe && chmod +x /usr/local/bin/ffprobe
+
+# ✅ Fix this: copy compiled JS from the correct path
+COPY --from=build /app/bot/dist ./bot/dist
+
 WORKDIR /app/bot
-
-# 5️⃣ add FFmpeg binary for fluent-ffmpeg
-RUN apk add --no-cache ffmpeg
-
-# 6️⃣ copy compiled JS bundle
-COPY --from=build /app/bot/dist ./dist
-
 CMD ["node", "dist/src/index.js"]

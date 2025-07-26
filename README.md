@@ -141,6 +141,16 @@ In this moment we take flight"
 
 Inside its free-form reply; the bot parses those lines, executes the matching helper (Tavily search, Stable-Diffusion Forge for image generation, and ACE-Step for music generation) via regex (`tooCallRouter.ts`), and returns rich content—all without ever “faking” a Discord slash interaction, which Discord explicitly forbids for bots.
 
+### 🖥 Local WebUI Interface (WIP)
+
+- **Session Management**: Create, switch, and persist multiple chat sessions backed by PostgreSQL  
+- **Command Palette**: Press ⌘ / Ctrl + K to browse and execute slash commands in a searchable popup  
+- **Image Handling**:  
+  - Automatically pull the bot’s latest generated image from Discord  
+  - Manually upload new images (drag‑and‑drop or file picker) with local caching  
+- **Share Toggle**: One‑click secure tunnel (via Cloudflare Tunnel) to expose your WebUI externally  
+- **Responsive & Themed**: Styled with a dark “Cyber‑Terminal” theme—complete with animated borders, scanlines, and gradient buttons
+
 ---
 
 ## 🚀 Quick Start Guide  
@@ -193,8 +203,15 @@ nano .env
 - Once Configuration is complete for both `system_prompt.md` and `.env`, (keep reading to the configuration section for a more detailed look) build and start the containers:
 
 ```bash
-# Build and start containers
+# Build and start containers no local webUI
 docker compose build && docker compose up -d
+```
+
+-or- If you want the local WebUI:
+
+```bash
+# Build and start containers including the local webUI
+docker compose --profile webui build && docker compose up -d
 ```
 
 (On Windows the Docker command is):
@@ -266,10 +283,22 @@ docker compose up --build -d
   docker compose build --no-cache && docker compose up -d
   ```
 
+-or-
+
+```bash
+docker compose --profile webui build --no-cache && docker compose up -d
+```
+
   On Windows run:
 
   ```bash
   docker compose build --no-cache
+  ```
+
+  -or-
+
+  ```bash
+  docker compose --profile webui build --no-cache
   ```
 
   Then:
@@ -397,6 +426,9 @@ DISCORD_TOKEN=                 # Your bot token
 CLIENT_ID=                     # Your application (client) ID
 GUILD_ID=                      # (Optional) Guild ID for development
 
+# Local WebUI Port
+WEBUI_PORT=3000
+
 # Text Generation (Ollama / OpenRouter)
 TEXTGEN_PROVIDER=ollama        # "ollama" or "openrouter"
 MODEL_OLLAMA=hf.co/unsloth/Qwen3-14B-128K-GGUF:Q8_K_XL
@@ -407,7 +439,7 @@ OPENROUTER_KEY=                # Only if using OpenRouter
 IMAGEGEN_PROVIDER=stablediffusion
 FLUX_MODEL_NAME=EVERFLUX_x1
 SD_URL=http://host.docker.internal:7860    # Forge FLUX API endpoint
-FORGE_HOST=http://host.docker.internal:7869 # Dedicated LoRA API endpoint
+FORGE_HOST=http://host.docker.internal:7860 # Dedicated LoRA API endpoint
 
 # Forge/Flux Settings
 FLUX_ENABLED=true
@@ -574,7 +606,6 @@ hideThoughtProcess: ${HIDE_THOUGHT_PROCESS:-false}
 - **`view` option** lets users fetch the full-resolution thumbnail (under 10 MB) for a specific LoRA index—sent as a direct attachment  
 - **Refresh button** in embeds rescans LoRAs and resets to page 1 without rerunning the slash command  
 
-
 ### Thread Management  
 
 | Command               | Description                      | Example Usage            |  
@@ -651,6 +682,7 @@ pie
   - ["Summary Bot" services that compress long chat histories](https://github.com/rauljordan/daily-discord-summarizer)
   - [Daily Discord Summarizer](https://github.com/rauljordan/daily-discord-summarizer) GitHub project for scheduled digests
   - [TLDRBot-style /tldr implementations for quick summary commands](https://www.notta.ai/en/blog/summary-bot).
+  - [YouLama](https://github.com/tcsenpai/youlama) A powerful web application for transcribing and summarizing YouTube videos and local media files using faster-whisper and Ollama.
 
 ---
 

@@ -16,6 +16,15 @@ volumes:
 
 # ───────────────────────────────────────  BOT  ───────────────────────────────────────
 services:
+  webui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.webui
+    ports:
+      - "${WEBUI_PORT}:${WEBUI_PORT}"
+    profiles: ["webui"]          # ⬅ activate only via --profile webui
+    depends_on: [ bot ]          # UI stays up even if bot stops
+    networks: [ multimodal ]
   bot:
     build:
       context: .                    # entire repo
