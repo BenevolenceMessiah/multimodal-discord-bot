@@ -3,11 +3,15 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.webui
+      args:
+        WEBUI_PORT: ${WEBUI_PORT:?set in .env}
+    environment:
+      PORT: ${WEBUI_PORT}
     ports:
       - "${WEBUI_PORT}:${WEBUI_PORT}"
-    profiles: ["webui"]          # ⬅ activate only via --profile webui
-    depends_on: [ bot ]          # UI stays up even if bot stops
-    networks: [ multimodal ]
+    profiles: ["webui"]
+    depends_on: [bot]
+    networks: [multimodal]
     restart: unless-stopped
   bot:
     build:

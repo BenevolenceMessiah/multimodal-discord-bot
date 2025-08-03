@@ -211,13 +211,31 @@ docker compose build && docker compose up -d
 
 ```bash
 # Build and start containers including the local webUI
-docker compose --profile webui build && docker compose up -d
+docker compose --profile webui build && docker compose --profile webui up -d webui
 ```
 
 (On Windows the Docker command is):
 
 ```bash
 docker compose up --build -d
+```
+
+Then:
+
+```bash
+docker compose up -d
+```
+
+-or- (for the webUI):
+
+```bash
+docker compose --profile webui build --no-cache webui
+```
+  
+Then:
+
+```bash
+docker compose --profile webui up -d webui
 ```
 
 ### Method 2 (You don't have the local providers (Ollama, Stable Diffusion WebUI Forge, AllTalk TTS, ACE-Step, etc.)running on your system already)
@@ -283,10 +301,10 @@ docker compose up --build -d
   docker compose build --no-cache && docker compose up -d
   ```
 
--or-
+-or- (for the webUI):
 
 ```bash
-docker compose --profile webui build --no-cache && docker compose up -d
+docker compose --profile webui build --no-cache && docker compose --profile webui up -d webui
 ```
 
   On Windows run:
@@ -295,16 +313,22 @@ docker compose --profile webui build --no-cache && docker compose up -d
   docker compose build --no-cache
   ```
 
-  -or-
-
-  ```bash
-  docker compose --profile webui build --no-cache
-  ```
-
   Then:
 
   ```bash
   docker compose up -d
+  ```
+
+  -or- (for the webUI):
+
+  ```bash
+  docker compose --profile webui build --no-cache webui
+  ```
+  
+  Then:
+
+  ```bash
+  docker compose --profile webui up -d webui
   ```
 
 ## 🔧 Configuration  
@@ -457,7 +481,8 @@ FLUX_MODULE_3=FLUX_VAE.safetensors # Must be VAE in MODULE_3 or else edit image.
 
 # Voice Generation (AllTalk / ElevenLabs)
 VOICEGEN_PROVIDER=alltalk       # "alltalk" or "elevenlabs"
-MODEL_ALLTALK=xttsv2_2.0.2
+MODEL_ALLTALK=xttsv2_2.0.3
+ALLTALK_VOICE=Arnold.wav
 ALLTALK_URL=http://host.docker.internal:7851
 ELEVENLABS_KEY=                 # Only if using ElevenLabs
 
@@ -586,15 +611,31 @@ hideThoughtProcess: ${HIDE_THOUGHT_PROCESS:-false}
 
 ### Core Commands  
 
-| Command          | Description                        | Example                                                  |
-|------------------|------------------------------------|----------------------------------------------------------|
-| `/say [prompt]`  | Echo user input                    | `/say Testing, testing, 1,2,3`                           |
-| `/img [prompt], [lora]`  | Generate image from text, use asw many LoRAs as you want           | `/img Mystical forest at dusk`                           |
-| `/music [spec]`  | Generate music (prompt + lyrics)   | `/music rock, 130 bpm\n\n[chorus] Frozen Turtle …`       |
-| `/loras [page]`  | Browse available LoRAs             | `/loras page: 2`                                         |
-| `/loras view: [number]` | Show full image for a listed LoRA  | `/loras view: 5`                                        |
-| `/web [topic]`   | Run a Tavily web search            | `/web Current weather in Tokyo`                          |
-| `/clear`         | Reset conversation memory          | `/clear`                                                 |
+| Command          | Description                        | Example Usage                                                   |
+|------------------|------------------------------------|-----------------------------------------------------------------|
+| `/say [prompt]`  | Echo user input                    | `/say Testing, testing, 1,2,3`                                  |
+| `/img [prompt], [lora]` | Generate image from text (supports LoRAs) | `/img Mystical forest at dusk lora:"aeshteticv5"` |
+| `/mus│c [spec]`  | Generate music (prompt + lyrics)   | `/music rock, 130 bpm\n\n[chorus] Frozen Turtle …`              |
+| `/loras` options | Browse or preview LoRAs            | `/loras page:2` or `/loras view:5`                             |
+| `/web [query]`   | Run a Tavily web search            | `/web Current weather in Tokyo`                                 |
+| `/clear`         | Wipe the bot’s memory for channel  | `/clear`                                                        |
+| **`/speak [text]`**   | Create TTS audio and **either** stream to your **voice channel** **or** attach as file | `/speak Welcome to the server!` |
+| **`/tts-service [mode]`** | Toggle **automatic voice replies** for every bot response | `/tts-service on` |
+
+#### Audio Details
+
+- **`/speak`**  
+  - Generates speech for the provided text with the configured TTS provider (AllTalk **local** or ElevenLabs).  
+  - If you are **already in a voice channel**, the bot **joins, plays the audio**, then **leaves**.  
+  - If you are **not in voice**, it uploads the audio as an `.mp3` attachment.  
+  - Internal WAV files are immediately deleted after processing.
+
+- **`/tts-service`**  
+  - Choices: `on`, `off`, `audio-only`.  
+  - Scope: **per-guild** (or `global` in DMs).  
+  - **`on`** – every bot reply is **both** text **and** voiced in your voice channel (auto-join).  
+  - **`audio-only`** – the bot **only** speaks; no text message is sent.  
+  - **`off`** – disables auto-voice.
 
 #### 🎨 LoRA Browser (`/loras`)
 
