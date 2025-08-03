@@ -164,7 +164,7 @@ Inside its free-form reply; the bot parses those lines, executes the matching he
   - Ollama (local) or OpenRouter (cloud) for text  
   - Stable Diffusion Forge (local) for images  
   - AllTalk (local) or ElevenLabs (cloud) for voice
-  - ACE-Step (local) for music
+  - ACE-Step [Benevolence Messiah Fork](https://github.com/BenevolenceMessiah/ACE-Step) (local) for music
   - Tavily (cloud) for web search
 - **Note**:
   - For any provider(s) you skip, the bot will simply not have that functionality. Everything else should work.
@@ -174,6 +174,8 @@ Inside its free-form reply; the bot parses those lines, executes the matching he
 ## Installation
 
 ### Method 1 (You already have the local providers (Ollama, Stable Diffusion WebUI Forge, AllTalk TTS, ACE-Step, etc.)running on your system)
+
+**Note:** You must have the [Benevolence Messiah Fork](https://github.com/BenevolenceMessiah/ACE-Step) for ACE-Step in order for the API to work correctly.
 
 - Git Clone the repo and change the directory to the project root:
 
