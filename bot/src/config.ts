@@ -5,6 +5,7 @@
  * • Applies .env overrides (camelCase or SNAKE_CASE)
  * • Adds booleans hideThoughtProcess, agenticToolcall, summarizeSearch
  * • Adds musicgenProvider, discordUploadLimitBytes
+ * • Adds verbose flag for controlling LLM commentary around tool calls
  * • Logs meaningful errors via utils/logger.ts
  * • Freezes and exports an immutable, fully-typed object
  ******************************************************************/
@@ -53,6 +54,7 @@ const cfg = yaml.load(rawYaml) as BotConfig & {
   summarizeSearch?:           boolean;
   musicgenProvider?:          string;
   discordUploadLimitBytes?:   number;
+  verbose?:                  boolean;
 };
 
 /* ───────────── .env overrides ───────────── */
@@ -81,6 +83,10 @@ for (const [envKey, val] of Object.entries(process.env)) {
     case 'discord_upload_limit_bytes':
       cfg.discordUploadLimitBytes = toInt(val, 9_500_000);
       break;
+    case 'verbose':
+    case 'verbose_output':
+      cfg.verbose = toBool(val);
+      break;
     default:
       if (k in cfg) (cfg as any)[k] = val;
   }
@@ -107,6 +113,7 @@ cfg.agenticToolcall          ??= true;
 cfg.summarizeSearch          ??= false;
 cfg.musicgenProvider         ??= cfg.musicgenProvider ?? 'none';
 cfg.discordUploadLimitBytes  ??= 9_500_000;
+cfg.verbose                  ??= false;
 
 /* ───── runtime validations ───── */
 const { endpoints = {}, search, redis, postgres } = cfg;
@@ -140,6 +147,7 @@ interface FinalConfig extends BotConfig {
   summarizeSearch:           boolean;
   musicgenProvider:          string;
   discordUploadLimitBytes:   number;
+  verbose:                   boolean;
 }
 
 export const config = Object.freeze({
@@ -149,4 +157,5 @@ export const config = Object.freeze({
   summarizeSearch:         cfg.summarizeSearch,
   musicgenProvider:        cfg.musicgenProvider,
   discordUploadLimitBytes: cfg.discordUploadLimitBytes,
+  verbose:                 cfg.verbose,
 }) as Readonly<FinalConfig>;

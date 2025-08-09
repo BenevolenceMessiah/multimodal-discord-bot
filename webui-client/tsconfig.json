@@ -1,22 +1,23 @@
 {
-  /* inherit all strict / paths / module settings from the monorepo root */
   "extends": "../tsconfig.base.json",
-
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir":  "dist",
-    "types": ["react", "react-dom"],
-
-    /* allow absolute (“src/…”) imports */
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["vite/client", "react", "react-dom"],
     "baseUrl": "src",
     "paths": {
       "*": ["*", "types/*"]
     },
-
-    /* suppress third‑party d.ts clashes (React 19 prerelease, etc.) */
-    "skipLibCheck": true
+    "rootDir": "src",
+    "outDir": "dist"
   },
-
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",

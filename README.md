@@ -139,7 +139,7 @@ Catch the tune and hold it tight
 In this moment we take flight"
 ```
 
-Inside its free-form reply; the bot parses those lines, executes the matching helper (Tavily search, Stable-Diffusion Forge for image generation, and ACE-Step for music generation) via regex (`tooCallRouter.ts`), and returns rich content—all without ever “faking” a Discord slash interaction, which Discord explicitly forbids for bots.
+Inside its free-form reply; the bot parses those lines, executes the matching helper (Tavily search, Stable-Diffusion Forge for image generation, and ACE-Step for music generation) via regex (`tooCallRouter.ts`), and returns rich content—all without ever “faking” a Discord slash interaction, which Discord explicitly forbids for bots. This integrates with the `.env` variable `VERBOSE=false`. When `VERBOSE` is set to `'true'`, the bot will include the assistant's narrative before and after issuing a tool call (e.g. “Sure thing, let me do that…” and “Here is your generated image!”).  When `'false'` (the default), only the tool-call line and the generated result are sent to Discord.
 
 ### 🖥 Local WebUI Interface (WIP)
 
@@ -497,11 +497,23 @@ SUMMARIZE=false # If true, AI /web tool call will NOT post Tavily links to Disco
 MUSICGEN_PROVIDER=acestep # Currently only ACE-Step
 
 # ACE-Step settings
-ACE_STEP_BASE=http://host.docker.internal:7867
-ACE_STEP_FORMAT=mp3          # wav | mp3 | ogg  (pipeline default: mp3) user can override in slash command
-ACE_STEP_CKPT=./checkpoints/ACE-Step-v1-3.5B
+#
+# The ACEStep FastAPI server runs on port 8000. Set either ACE_STEP_BASE or
+# ACE_STEP_ENDPOINT. If you set ACE_STEP_BASE it should **not** include a
+# path; the bot will automatically append `/generate`. If you set
+# ACE_STEP_ENDPOINT it must include the `/generate` path.
+#
+# Examples:
+#   ACE_STEP_BASE=http://host.docker.internal:8000
+#   ACE_STEP_ENDPOINT=http://host.docker.internal:8000/generate
+
+ACE_STEP_BASE=http://host.docker.internal:8000
+#ACE_STEP_ENDPOINT=http://host.docker.internal:8000/generate
+ACE_STEP_FORMAT=mp3          # wav | mp3 | flac  (pipeline default: mp3) user can override in slash command
+ACE_STEP_CKPT=./checkpoints
 ACE_STEP_DURATION=-1 # Random duration
 ACE_STEP_STEPS=200 # Number of inference steps
+
 # Discord upload safety
 DISCORD_UPLOAD_LIMIT_BYTES=9950000 # 9.5 MB — keeps us under the 10 MB free tier. Note WAV is capped at 5MB on Discord
 
@@ -516,6 +528,13 @@ WAKE_WORDS='["bot","help"]'     # Comma-separated list of wakewords
 MAX_LINES=25                    # How many past messages to store
 HIDE_THOUGHT_PROCESS=false      # Set to true to hide the thought process block
 AGENTIC_TOOLCALL=true           # set to “false” to disable all Tool Call parsing
+# Verbosity:
+# Control how much of the LLM's commentary is shown around tool calls.  When
+# VERBOSE is set to 'true', the bot will include the assistant's narrative
+# before and after issuing a tool call (e.g. “Sure thing, let me do that…”
+# and “Here is your generated image!”).  When 'false' (the default), only
+# the tool-call line and the generated result are sent to Discord.
+VERBOSE=false
 
 # Cache & Storage
 REDIS_ENABLED=true

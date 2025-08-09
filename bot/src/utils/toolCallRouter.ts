@@ -1,6 +1,12 @@
 /****************************************************************************************
  * toolCallRouter.ts – routes “/img”, “/web”, and “/music” tool-calls issued by the LLM.
  * Streams results back to Discord with 2 000-char chunking for long messages.
+ *
+ * QoL:
+ *   • Track numbering uses Math.floor to avoid float artefacts.
+ *   • Music segments are emitted in order without accidental duplication.
+ *   • Unknown tool calls are handled gracefully.
+ *   • `/web` uses the LLM **only** when summarize mode is enabled.
  ****************************************************************************************/
 
 import {
@@ -11,32 +17,28 @@ import fetch from 'node-fetch';
 
 import { generateImage }  from '../../services/image.js';
 import { generateMusic }  from '../../services/ace.js';
-import { chunkAudio }     from '../../src/utils/audio.js';
-import { logger }         from '../../src/utils/logger.js';
-import { stripThought } from '../../src/utils/stripThought.js';
+import { chunkAudio }     from './audio.js';
+import { logger }         from './logger.js';
+import { stripThought }   from './stripThought.js';
 import { config }         from '../config.js';
 import { generateText }   from '../../services/llm.js';
 
 /* ──────────────────────── typing-indicator helper ─────────────────────── */
 export async function withTyping(
   channel: TextBasedChannel | null,
-  fn: () => Promise<void>,
+  fn: () => Promise<any>,
 ): Promise<void> {
   if (channel && 'sendTyping' in channel) {
     (channel as TextChannel | DMChannel | NewsChannel | ThreadChannel)
       .sendTyping()
-      .catch(e =>
-        logger.warn(
-          `sendTyping failed: ${(e as NodeJS.ErrnoException).code ?? (e as Error).message}`,
-        ),
-      );
+      .catch(e => logger.warn(`sendTyping failed: ${(e as Error).message}`));
   }
   await fn();
 }
 
 /* ────────────────────────── utils & shared types ───────────────────────── */
 type ToolCall = { cmd: string; arg: string };
-type SendableChannel = Extract<TextBasedChannel, { send: (...a: any[]) => any }>;
+type SendableChannel = Extract<TextBasedChannel, { send: (...args: any[]) => any }>;
 
 interface TavilyHit { title: string; url: string; content: string }
 
@@ -51,11 +53,10 @@ const isSendable = (c: TextBasedChannel | null): c is SendableChannel =>
   !!c && 'send' in c && typeof (c as any).send === 'function';
 
 async function sendChunked(ch: SendableChannel, text: string) {
-  const CHUNK = 1_990;
+  const CHUNK = 1_990; // Discord hard cap ~2000 chars. :contentReference[oaicite:2]{index=2}
   const parts = text.match(new RegExp(`.{1,${CHUNK}}`, 'gs')) ?? [];
   for (let i = 0; i < parts.length; i++) {
     await ch.send(parts[i] + (i < parts.length - 1 ? ' …' : ''));
-    if (parts.length > 1) await new Promise(r => setTimeout(r, 1_500));
   }
 }
 
@@ -91,6 +92,7 @@ export async function tryHandleToolCall(
             return;
           }
 
+          // Prefer POST; some setups allow GET fallback. :contentReference[oaicite:3]{index=3}
           const body = { query: arg, max_results: 8, include_answer: true };
           let res = await fetch('https://api.tavily.com/search', {
             method: 'POST',
@@ -147,14 +149,15 @@ export async function tryHandleToolCall(
             format: (process.env.ACE_STEP_FORMAT ?? 'mp3') as 'mp3' | 'wav' | 'flac',
           });
           const parts = await chunkAudio(audio);
+          const totalPages = Math.ceil(parts.length / 10);
           for (let i = 0; i < parts.length; i += 10) {
-            if (isSendable(channel))
+            const slice = parts.slice(i, i + 10);
+            if (isSendable(channel)) {
               await channel.send({
-                content: `🎶 Track segment ${i / 10 + 1}/${Math.ceil(parts.length / 10)}`,
-                files: parts
-                  .slice(i, i + 10)
-                  .map((buf, idx) => new AttachmentBuilder(buf, { name: `seg_${i + idx}.mp3` })),
+                content: `🎶 Track segment ${Math.floor(i / 10) + 1}/${totalPages}`,
+                files: slice.map((p, idx) => new AttachmentBuilder(p, { name: `seg_${i + idx}.${(process.env.ACE_STEP_FORMAT ?? 'mp3')}` })),
               });
+            }
           }
           return;
         }

@@ -13,33 +13,34 @@ COPY ../tsconfig.base.json          ./
 COPY ../core/package.json           core/
 COPY ../webui-client/package.json   webui-client/
 COPY ../webui-server/package.json   webui-server/
-RUN pnpm install --frozen-lockfile                    # dev + prod deps
+RUN pnpm install --frozen-lockfile
 
 # 3️⃣ sources ➜ compile / bundle
 COPY ../core          core
 COPY ../webui-client  webui-client
 COPY ../webui-server  webui-server
 
-RUN pnpm exec tsc -p core/tsconfig.json          \
- && pnpm exec tsc -p webui-server/tsconfig.json  \
- && pnpm --filter @multimodal/webui-client run build      # ➜ webui-client/dist
+# compile TS for shared core + server
+RUN pnpm exec tsc -p core/tsconfig.json \
+ && pnpm exec tsc -p webui-server/tsconfig.json
 
-# (‼️) NEVER copy the template public/ folder again – keep Vite output intact
-# Patch the built index.html so it references the *hashed* assets
+# ⭐ build the client BY PATH (no filter name foot-guns)
+RUN pnpm --dir webui-client run build   # ➜ webui-client/dist
+
+# Patch built index.html so it references hashed assets
 RUN set -e; \
     jsfile="$(basename "$(ls webui-client/dist/assets/index-*.js  | head -n1)")"; \
     cssfile="$(basename "$(ls webui-client/dist/assets/index-*.css | head -n1)")"; \
-    sed -i "s@/src/main.tsx@/assets/${jsfile}@g" \
-          webui-client/dist/index.html; \
-    sed -i "/<head>/a\\    <link rel=\"stylesheet\" href=\"/assets/${cssfile}\" />" \
-          webui-client/dist/index.html
+    sed -i "s@/src/main.tsx@/assets/${jsfile}@g" webui-client/dist/index.html; \
+    sed -i "/<head>/a\\    <link rel=\"stylesheet\" href=\"/assets/${cssfile}\" />" webui-client/dist/index.html; \
+    printf "<!-- build-stamp: %s -->\n" "$(date -u +%Y%m%d-%H%M%S)" | cat - webui-client/dist/index.html > /tmp/_ix && mv /tmp/_ix webui-client/dist/index.html
 
-# 3-d) move the ENTIRE built dist/ folder into the server
+# Move ENTIRE built dist into the server public dir
 RUN rm -rf webui-server/dist/public \
  && mkdir -p  webui-server/dist \
- && cp -a webui-client/dist        webui-server/dist/public
+ && cp -a webui-client/dist webui-server/dist/public
 
-# sanity
+# Sanity
 RUN echo '--- dist/public tree ---' && ls -R webui-server/dist/public | sed 's/^/  /'
 
 # 4️⃣ pack @multimodal/core for fast prod install
@@ -55,40 +56,41 @@ COPY --from=build /build/webui-server/dist   webui-server/dist
 COPY --from=build /tmp/core.tgz              /tmp/
 COPY ../webui-server/package.json            webui-server/
 
-# 2. prod‑only install (+ drivers)
+# 2. prod-only install (+ drivers)
 WORKDIR /app/webui-server
 RUN node - <<'NODE'
   const fs = require('fs');
   const pkgPath = 'package.json';
   const pkg = JSON.parse(fs.readFileSync(pkgPath,'utf8'));
-
   pkg.dependencies = Object.assign(pkg.dependencies ?? {}, {
     "@multimodal/core": "file:/tmp/core.tgz",
-    express            : "^4.19.2",   // 👈  add this line
+    express            : "^4.19.2",
     pg                 : "^8.11.5",
     redis              : "^4.6.11",
     multer             : "^2.0.2"
   });
-
   fs.writeFileSync(pkgPath, JSON.stringify(pkg,null,2));
 NODE
 
 RUN npm install --omit=dev
 
-# ---------- NEW: create uploads dir while still root -------------
+# create uploads dir (while root), then lock perms
 RUN mkdir -p dist/public/uploads \
- && chmod 777 dist/public/uploads          # <— open perms; or use 775 later
+ && chmod 777 dist/public/uploads
 
-# 3. create non‑root user  ➜ now chown safely
+ # create outputs dir (shared with server), then lock perms
+RUN mkdir -p /app/data/outputs \
+ && chmod 777 /app/data/outputs
+ENV OUTPUT_DIR=/app/data/outputs
+
+# non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
  && chown -R appuser:appgroup dist/public/uploads
-
 USER appuser
 
-# 4. port – honour $WEBUI_PORT if set
+# Port – honour $WEBUI_PORT if set
 ARG WEBUI_PORT=3000
 ENV PORT=$WEBUI_PORT
 EXPOSE $WEBUI_PORT
 
 CMD ["node","dist/index.js"]
-

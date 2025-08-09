@@ -1,31 +1,39 @@
 import { create } from 'zustand';
 
-interface ChatSession {
+export interface Session {
   id: string;
   title: string;
+  created_at: string;
+  updated_at: string;
 }
 
-interface SessionState {
-  sessions: ChatSession[];
-  current?: string;
-  refresh(): Promise<void>;
-  create(title:string): Promise<void>;
-  setCurrent(id:string): void;
+interface Store {
+  sessions: Session[];
+  current: string | null;
+  refresh: () => Promise<void>;
+  create: (title: string) => Promise<void>;
+  setCurrent: (id: string) => void;
 }
 
-export const useSessionStore = create<SessionState>((set,get)=>({
-  sessions:[],
-  async refresh(){
-    const res = await fetch('/api/sessions');
-    set({sessions: await res.json()});
+export const useSessionStore = create<Store>((set, get) => ({
+  sessions: [],
+  current: null,
+
+  refresh: async () => {
+    const list = await fetch('/api/sessions').then(r => r.json()) as Session[];
+    set({ sessions: list });
+    if (!get().current && list.length > 0) set({ current: list[0].id });
   },
-  async create(title){
-    const res = await fetch('/api/sessions',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({title})
-    });
-    const s = await res.json();
-    set(state=>({sessions:[s,...state.sessions],current:s.id}));
+
+  create: async (title: string) => {
+    const row = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    }).then(r => r.json()) as Session;
+
+    set((s) => ({ sessions: [row, ...s.sessions], current: row.id }));
   },
-  setCurrent(id){set({current:id});}
+
+  setCurrent: (id: string) => set({ current: id }),
 }));
