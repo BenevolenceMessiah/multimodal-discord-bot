@@ -1,25 +1,43 @@
 /* utils/formatToolCall.ts
- * Pretty-print a raw “Tool call: /img something” line as
- * `Tool call: /img` ```something```
- * If the line doesn't match, return it unchanged.
+ * Pretty-print a raw Tool-call slice as:
+ *
+ *   `Tool call: /cmd`
+ *   ```<full-arg>```
+ *
+ * If the slice doesn't match, return it unchanged (trimmed).
  */
 
-import { TOOL_CALL_RE } from './toolCallRouter.js';
+import { TOOL_LINE_RE } from './regexes.js';
 
-/* Create a non-global clone of the router regex so .exec() yields groups */
-const TOOL_CALL_SINGLE = new RegExp(
-  TOOL_CALL_RE.source,            // same pattern body
-  TOOL_CALL_RE.flags.replace('g', '') // drop the global flag
-);
+/* Non-global clone so .exec() is deterministic & group-aware */
+const SINGLE = new RegExp(TOOL_LINE_RE.source, TOOL_LINE_RE.flags.replace('g', ''));
 
-export function formatToolCallLine(line: string): string {
-  const m = TOOL_CALL_SINGLE.exec(line);
+export function formatToolCallLine(slice: string): string {
+  const text = String(slice ?? '');
+  const m = SINGLE.exec(text);
+  SINGLE.lastIndex = 0;
 
-  if (!m) return line.trim();               // fall back untouched
+  if (!m) return text.trim();
 
-  const [, cmd = '', argRaw = ''] = m;      // groups always safe now
-  const arg  = argRaw.trim().replace(/^“|”$/g, '"'); // normalise smart quotes
-  const code = `\`Tool call: /${cmd}\``;    // inline back-tick
-  const block = arg ? ` \`\`\`${arg}\`\`\`` : '';    // fenced block when arg exists
-  return code + block;
+  const cmd = (m.groups?.cmd ?? '').trim();
+  const rawArg = String(m.groups?.rest ?? '');
+  const arg = normalizeEdgeQuotes(rawArg);
+
+  const code = `\`Tool call: ${cmd}\``;
+
+  const t = arg.trim();
+  if (!t) return code;
+
+  // If arg is already a fenced block, don’t double-wrap — preserve as-is on a new line.
+  if (t.startsWith('```')) return `${code}\n${t}`;
+
+  // Otherwise show the arg in a fenced block (works great for multi-line quotes).
+  return `${code}\n\`\`\`\n${arg}\n\`\`\``;
+}
+
+function normalizeEdgeQuotes(s: string): string {
+  return String(s ?? '')
+    .replace(/^“/, '"').replace(/”$/, '"')
+    .replace(/^‘/, "'").replace(/’$/, "'")
+    .trim();
 }

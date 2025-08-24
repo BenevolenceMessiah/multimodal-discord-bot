@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path, { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { logger } from './utils/logger.js';
@@ -19,12 +20,12 @@ import { config } from './config.js';
 import { pushMessage as pushToMemory } from '../services/context.js';
 import {
   pushMessage, getContext, convoKey,
-  maybeSummarize, getRecentMessages, getSummary
+  maybeSummarize
 } from '../services/cache.js';
 
 /* Utilities */
 import { formatToolCallLine } from './utils/formatToolCall.js';
-import { withTyping, splitMessage } from './utils/messageUtils.js';
+import { withTyping } from './utils/messageUtils.js'; // typing indicator
 import { tryHandleToolCall } from './utils/toolCallRouter.js';
 import { stripThought } from './utils/stripThought.js';
 import { splitByToolCalls } from './utils/splitByToolCalls.js';
@@ -89,7 +90,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.MessageContent,   // enable in Dev Portal too
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.DirectMessages,
   ],
@@ -115,9 +116,30 @@ for (const p of [path.join(__dirname, 'events'), path.join(__dirname, '../events
   }
 }
 
+/* ---------------- safe chunking helpers --------------------------- */
+function chunkText(text: string, size = 1990): string[] {
+  const s = (text ?? '').toString();
+  if (!s) return [];
+  const out: string[] = [];
+  for (let i = 0; i < s.length; i += size) out.push(s.slice(i, i + size));
+  return out;
+}
+async function sendChunksReply(msg: any, text: string): Promise<number> {
+  const chunks = chunkText(text, 1990);
+  if (chunks.length === 0) return 0;
+  await msg.reply(chunks[0]);
+  for (const extra of chunks.slice(1)) await msg.channel.send(extra);
+  return chunks.length;
+}
+async function sendChunksChannel(msg: any, text: string): Promise<number> {
+  const chunks = chunkText(text, 1990);
+  if (chunks.length === 0) return 0;
+  await msg.channel.send(chunks[0]);
+  for (const extra of chunks.slice(1)) await msg.channel.send(extra);
+  return chunks.length;
+}
+
 /* ---------------- bot-authored capture (media + text) -------------- */
-/** Capture everything the bot posts (text + attachments) into memory,
-    and optionally download attachments to OUTPUT_DIR. */
 client.on('messageCreate', async (msg) => {
   if (!msg.author.bot) return; // only bot-authored here
 
@@ -214,8 +236,7 @@ client.on('messageCreate', async (msg) => {
     logger.warn(`pushMessage (user) failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // 1) Agentic tool-call fast path
-  if (await tryHandleToolCall(msg.content, msg.channel)) return;
+  // 🚫 No fast-path on user text. Tool calls are triggered by the AI’s reply.
 
   // 2) Addressing rules (DMs, mention, or wake-word)
   if (!client.user) return;
@@ -243,6 +264,9 @@ client.on('messageCreate', async (msg) => {
     return;
   }
 
+  // 🔎 log prompt visibility
+  logger.info(`LLM > ${msg.author.tag} | prompt "${userPrompt}"`);
+
   try {
     await withTyping(msg.channel as TextBasedChannel, async () => {
       // 4) Build token-budgeted context with system prompt
@@ -255,93 +279,126 @@ client.on('messageCreate', async (msg) => {
       const cleanFull = extractResponseContent(rawReply, botUser.username);
       const { textBefore, calls, textAfter } = splitByToolCalls(cleanFull);
 
-      const before = config.hideThoughtProcess ? stripThought(textBefore) : textBefore;
-      let   after  = config.hideThoughtProcess ? stripThought(textAfter)  : textAfter;
+      const before = (config as any).hideThoughtProcess ? stripThought(textBefore) : textBefore;
+      let   after  = (config as any).hideThoughtProcess ? stripThought(textAfter)  : textAfter;
 
-      /* ---------- automatic TTS branch ---------- */
+      /* ---------- automatic TTS branch (robust: fallback + chunking) ---------- */
       const mode = getTTSMode(msg.guildId ?? 'global');
       let skipNarration = false;
+      let postedSomething = 0;
 
       if (mode !== 'off') {
         try {
-          const wav  = await synthesize(`${before} ${after}`.trim() || '[silence]');
+          const primary = `${before ?? ''}${after ? `\n${after}` : ''}`.trim();
+          const fallback = stripThought(cleanFull).trim();
+          const speechText = primary || fallback;
+
+          const wav  = await synthesize(speechText || '[silence]');
           const mp3  = await convertWavToMp3(wav);
           const file = new AttachmentBuilder(mp3);
 
           if (mode === 'audio-only') {
-            await msg.reply({ files: [file] });       // bot-authored capture records it
+            await msg.reply({ files: [file] });
             await fsp.unlink(wav).catch(() => {});
             await fsp.unlink(mp3).catch(() => {});
-            return; // audio only
+            return; // audio only → done (no text)
           }
 
-          // Speak AND send text in a single message
-          await msg.reply({ content: (before + after).trim(), files: [file] });
+          if (speechText) {
+            const chunks = chunkText(speechText, 1990);
+            await msg.reply({ content: chunks[0], files: [file] });
+            for (const extra of chunks.slice(1)) await msg.channel.send(extra);
+            postedSomething += chunks.length;
+            skipNarration = true; // we already posted text with audio
+          } else {
+            await msg.reply({ files: [file] });
+            postedSomething += 1;
+          }
 
           await fsp.unlink(wav).catch(() => {});
           await fsp.unlink(mp3).catch(() => {});
-          skipNarration = true; // prevent double-sending text
         } catch (e) {
-          logger.error(`Auto-TTS failed: ${e}`);
+          logger.error(`Auto-TTS failed: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
-      /* ---------- web-summary duplicate guard (FIX) ---------- */
-      // Only trim trailing narrative when the model actually used /web.
+      /* ---------- web-summary duplicate guard ---------- */
       const usedWebTool = calls.some((line) => /^`?\s*tool\s*call\s*:\s*\/web\b/i.test(line));
-      if (config.summarizeSearch && usedWebTool) {
+      if ((config as any).summarizeSearch && usedWebTool) {
         after = '';              // router already posted the results/summary
       }
 
       /* ---------- narration / tool-calls ---------- */
-      let postedSomething = false;
+      const verbose = !!(config as any).verbose;
+      const allowNarrationAroundTools = verbose; // when false, suppress around tool calls
 
-      // text before tool calls
-      if (!skipNarration && before) {
-        const chunks = splitMessage(before, 1_990); // Discord ~2000 chars limit. :contentReference[oaicite:1]{index=1}
-        await msg.reply(chunks[0]);
-        for (const extra of chunks.slice(1)) await msg.channel.send(extra);
-        postedSomething = true;
+      // Send narration before calls if either (a) no calls at all, or (b) verbose is enabled
+      if (!skipNarration && before && (calls.length === 0 || allowNarrationAroundTools)) {
+        postedSomething += await sendChunksReply(msg, before);
+        logger.info(`[send] narration(before) posted=${postedSomething}`);
       }
 
       if (calls.length === 0) {
         if (!skipNarration && after) {
-          const chunks = splitMessage(after, 1_990);
-          await msg.channel.send(chunks[0]);
-          for (const extra of chunks.slice(1)) await msg.channel.send(extra);
-          postedSomething = true;
+          postedSomething += await sendChunksChannel(msg, after);
+          logger.info(`[send] narration(after) +${postedSomething}`);
         }
 
-        // ✅ Fallback: if parser produced nothing, send raw model text
-        if (!postedSomething && cleanFull.trim()) {
-          const chunks = splitMessage(cleanFull.trim(), 1_990);
-          await msg.reply(chunks[0]);
-          for (const extra of chunks.slice(1)) await msg.channel.send(extra);
-          postedSomething = true;
+        // ✅ Final fallback: if parser produced nothing usable, send the full reply
+        if (postedSomething === 0 && cleanFull.trim()) {
+          postedSomething += await sendChunksReply(msg, cleanFull.trim());
+          logger.info(`[send] fallback(full) posted=${postedSomething}`);
         }
 
-        if (!postedSomething) {
-          await msg.reply('…').catch(() => {}); // minimal fallback
+        if (postedSomething === 0) {
+          await msg.reply('…').catch(() => {});
+          logger.warn('[send] emitted minimal fallback “…”');
         }
       } else {
-        // pretty tool-call lines
-        for (const raw of calls) {
-          const pretty = formatToolCallLine(raw);
-          await msg.channel.send(pretty);
+        // Canonicalize calls to ensure they start at "Tool call:"
+        const canonCalls = calls
+          .map(c => canonicalizeToolLine(c))
+          .filter(Boolean);
+
+        // pretty tool-call lines (for visibility)
+        if (canonCalls.length) {
+          for (const raw of canonCalls) {
+            const pretty = formatToolCallLine(raw);
+            await msg.channel.send(pretty);
+          }
+          postedSomething += 1; // count as posted to avoid verbose re-dump
         }
 
-        // execute tool-calls in order
-        for (const line of calls) {
-          await tryHandleToolCall(line, msg.channel);
-          if (!process.env.SUMMARIZE) await msg.channel.send('*Tool execution complete!*');
-          // bot-authored capture records outputs (including media)
+        // execute tool-calls in order — ONLY when AI asked for them
+        let anyHandled = false;
+        for (const line of canonCalls) {
+          try {
+            const handled = await tryHandleToolCall(line, msg.channel as TextBasedChannel);
+            anyHandled = anyHandled || handled;
+            if (!handled) {
+              logger.warn(`[router] tool line not handled: "${line.slice(0, 120)}${line.length > 120 ? '…' : ''}"`);
+              await msg.channel.send('⚠️ I couldn’t run one of the requested tools.').catch(() => {});
+            }
+            if (verbose) await msg.channel.send('🤖 *Tool execution complete!*');
+          } catch (e) {
+            logger.error(`[router] tool execution error: ${e instanceof Error ? e.message : String(e)}`);
+            await msg.channel.send('❌ Tool execution failed.').catch(() => {});
+          }
         }
 
-        // text after tool calls
-        if (!skipNarration && after) {
-          const chunks = splitMessage(after, 1_990);
-          await msg.channel.send(chunks[0]);
-          for (const extra of chunks.slice(1)) await msg.channel.send(extra);
+        if (anyHandled) postedSomething += 1;
+
+        // trailing narration only if verbose wanted (and not already sent via TTS combo)
+        if (!skipNarration && after && allowNarrationAroundTools) {
+          postedSomething += await sendChunksChannel(msg, after);
+          logger.info(`[send] narration(after tools)`);
+        }
+
+        // Extra guard: if nothing textual got posted and VERBOSE=true, don't re-dump cleanFull
+        // unless literally nothing made it out (we already counted pretty/tool outputs).
+        if (!skipNarration && verbose && postedSomething === 0 && !after && !before && cleanFull.trim()) {
+          postedSomething += await sendChunksChannel(msg, cleanFull.trim());
+          logger.info(`[send] verbose guard(full)`);
         }
       }
 
@@ -370,7 +427,7 @@ client.on('messageCreate', async (msg) => {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
-    logger.info(' Refreshing application commands…');
+    logger.info('🔃 Refreshing application commands…');
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), {
       body: commands.map(c => c.toJSON()),
     });
@@ -379,6 +436,8 @@ client.on('messageCreate', async (msg) => {
   }
 
   try {
+    // Helpful at boot: surface VERBOSE and Message Content usage
+    logger.info(`Config: VERBOSE=${String(!!(config as any).verbose)} HIDE_THOUGHT_PROCESS=${String(!!(config as any).hideThoughtProcess)}`);
     await client.login(process.env.DISCORD_TOKEN);
   } catch (err) {
     logger.error('Discord login failed:', err);
@@ -392,11 +451,14 @@ function escapeRegex(str: string) {
 }
 
 function extractResponseContent(full: string, bot: string) {
-  // If an SDK wraps in "Assistant: ...", strip it
-  const START = '', END = '';
-  const raw = full.includes(START) && full.includes(END) && full.indexOf(START) < full.indexOf(END)
+  // If an SDK wraps with tags like <final_response>...</final_response>, unwrap it.
+  const START = '<final_response>';
+  const END   = '</final_response>';
+  const hasTagged = full.includes(START) && full.includes(END) && full.indexOf(START) < full.indexOf(END);
+  const raw = hasTagged
     ? full.slice(full.indexOf(START) + START.length, full.indexOf(END))
     : full;
+  // Also strip leading "BotName: " if present
   return raw.replace(new RegExp(`^${escapeRegex(bot)}:\\s*`, 'i'), '').trim();
 }
 
@@ -410,7 +472,7 @@ function resolveSystemPrompt(): string {
       const p = path.resolve(process.cwd(), m[1].trim());
       try { return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : ''; } catch { return ''; }
     }
-    return sys;
+    return sys.replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
   }
   // 2) SYSTEM_PROMPT_PATH (fallbacks to ./system_prompt.md)
   const p = (process.env.SYSTEM_PROMPT_PATH ?? DEFAULT_SYSTEM_PATH);
@@ -459,9 +521,16 @@ async function downloadToOutputs(url: string, name: string, guildId: string, cha
   const stem = ext ? base.slice(0, -ext.length) : base;
   const out  = path.join(OUTPUT_DIR, `${ts}_${guildId}_${channelId}_${stem}${ext || ''}`);
 
+  // Node 18+ has global fetch
   const res  = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${res.status}`);
   const buf  = Buffer.from(await res.arrayBuffer());
   await fsp.writeFile(out, buf);
   return out;
+}
+
+function canonicalizeToolLine(raw: string): string {
+  const s = String(raw ?? '');
+  const ix = s.search(/`?\s*tool\s*call\s*:/i);
+  return ix === -1 ? '' : s.slice(ix).trim();
 }
